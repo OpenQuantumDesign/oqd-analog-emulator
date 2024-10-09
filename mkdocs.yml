@@ -1,8 +1,7 @@
 site_name: Open Quantum Design
-site_description: Open Quantum Design - the world's first open-source quantum computer
 
-repo_name: OpenQuantumDesign/midstack
-repo_url: https://github.com/OpenQuantumDesign/midstack
+repo_name: OpenQuantumDesign/analog-simulator
+repo_url: https://github.com/OpenQuantumDesign/analog-simulator
 
 copyright: Copyright &copy; 2024 Open Quantum Design
 
@@ -34,18 +33,10 @@ nav:
               - Ising model: examples/ising_model.ipynb
               - QAOA: examples/qaoa.ipynb
   - Explanation:
-      - Infrastructure: explanation/infrastructure.md
-      - Canonicalization: explanation/canonicalization.md
-      - Analog to Atomic Compiler: explanation/Analog-to-Atomic-compiler.md
       - QuTip Simulation: explanation/qutip-simulation.md
-  - API Reference:
-      - Interfaces:
-          - Math: reference/math_interface.md
-          - Analog: reference/analog_interface.md
-      - Compiler: reference/compiler.md
-      - Backends:
-          - Task: reference/task_backend.md
-          - Qutip: reference/qutip_backend.md
+#  - API Reference:
+#      - Task: reference/task_backend.md
+#      - Qutip: reference/qutip_backend.md
 
 theme:
   name: material
