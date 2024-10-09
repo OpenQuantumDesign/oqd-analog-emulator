@@ -1,4 +1,4 @@
-from midstack.backend.qutip.conversion import (
+from .conversion import (
     QutipBackendCompiler,
     QutipExperimentVM,
     QutipMetricConversion,
