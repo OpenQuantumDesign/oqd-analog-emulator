@@ -7,8 +7,8 @@ from oqd_compiler_infrastructure import ConversionRule, RewriteRule
 
 ########################################################################################
 
-from ..task import TaskResultAnalog
-from ...compiler.math.passes import evaluate_math_expr, simplify_math_expr
+from midstack.backend.task import TaskResultAnalog
+from midstack.compiler.math.passes import evaluate_math_expr, simplify_math_expr
 from .interface import (
     QutipExperiment,
     QutipOperation,
