@@ -1,5 +1,10 @@
+from dataclasses import dataclass, field
+from typing import List, Union, Literal, Dict
+
+import numpy as np
+
 from midstack.backend.base import BackendBase
-from midstack.backend.task import Task
+from midstack.backend.task import Task, CastComplexFloat, TaskArgsAnalog, TaskResultAnalog
 
 from analog_sim.interface import QutipExperiment, TaskArgsQutip
 
@@ -22,6 +27,9 @@ from midstack.compiler.analog.passes.assign import (
 __all__ = [
     "QutipBackend",
 ]
+
+from oqd_compiler_infrastructure import VisitableBaseModel
+from midstack.backend.task import TaskArgsBase, TaskResultsBase
 
 ########################################################################################
 
