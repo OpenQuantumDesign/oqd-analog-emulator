@@ -17,6 +17,3 @@ Welcome to the Open Quantum Design framework for programming quantum computers.
 This documentation is still under development, please feel to contribute! © Open Quantum Design
 ///
 
-## The stack
-
-![](figures/stack_diagram.png)

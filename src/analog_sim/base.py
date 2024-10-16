@@ -3,6 +3,20 @@ from midstack.backend.task import Task
 
 from analog_sim.interface import QutipExperiment, TaskArgsQutip
 
+from analog_sim.passes import (
+    run_qutip_experiment,
+    compiler_analog_args_to_qutipIR,
+    compiler_analog_circuit_to_qutipIR,
+)
+
+from midstack.compiler.analog.passes.canonicalize import (
+    analog_operator_canonicalization,
+)
+from midstack.compiler.analog.passes.assign import (
+    assign_analog_circuit_dim,
+    verify_analog_args_dim,
+)
+
 ########################################################################################
 
 __all__ = [
@@ -30,17 +44,8 @@ class QutipBackend(BackendBase):
             converted_args (TaskArgsQutip): args of analog layer are converted to args for QuTip.
 
         """
-        from midstack.compiler.analog.passes.canonicalize import (
-            analog_operator_canonicalization,
-        )
-        from midstack.compiler.analog.passes.assign import (
-            assign_analog_circuit_dim,
-            verify_analog_args_dim,
-        )
-        from midstack.backend.qutip.passes import (
-            compiler_analog_args_to_qutipIR,
-            compiler_analog_circuit_to_qutipIR,
-        )
+
+
 
         # pass to canonicaliza the operators in the AnalogCircuit
         canonicalized_circuit = analog_operator_canonicalization(task.program)
@@ -93,9 +98,8 @@ class QutipBackend(BackendBase):
             TaskResultAnalog object containing the simulation results.
 
         Note:
-            only one of task or experiment must provided
+            only one of task or experiment must be provided.
         """
-        from midstack.backend.qutip.passes import run_qutip_experiment
 
         if experiment is None and args is not None:
             raise TypeError("args provided without QuTip experiment")

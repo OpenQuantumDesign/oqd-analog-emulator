@@ -17,26 +17,12 @@ extra:
       name: Open Quantum Design Website
 
 nav:
-  - Get Started:
-      - The Stack: index.md
-      - Installation: get-started/installation.md
-  - Tutorials:
-      - Analog: tutorials/analog.md
-      - Examples:
-          - Analog:
-              - Rabi Flopping: examples/one_qubit_rabi_flopping.ipynb
-              - Adiabatic state:
-                  - Linear time-dependence: examples/adiabatic_linear.ipynb
-                  - Sigmoid time-dependence: examples/adiabatic_sigmoid.ipynb
-              - Bell state preparation: examples/bell_state.ipynb
-              - GHZ state preparation: examples/ghz_state.ipynb
-              - Ising model: examples/ising_model.ipynb
-              - QAOA: examples/qaoa.ipynb
+  - Get Started: index.md
   - Explanation:
       - QuTip Simulation: explanation/qutip-simulation.md
-#  - API Reference:
+  - API Reference:
 #      - Task: reference/task_backend.md
-#      - Qutip: reference/qutip_backend.md
+      - Qutip: reference/qutip_backend.md
 
 theme:
   name: material
@@ -79,6 +65,8 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          paths:
+            - ./src
           options:
             show_source: true
             show_root_heading: true
