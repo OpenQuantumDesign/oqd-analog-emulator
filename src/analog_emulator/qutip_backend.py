@@ -1,23 +1,18 @@
-from dataclasses import dataclass, field
-from typing import List, Union, Literal, Dict
+from core.backend.base import BackendBase
+from core.backend.task import Task
 
-import numpy as np
+from analog_emulator.interface import QutipExperiment, TaskArgsQutip
 
-from midstack.backend.base import BackendBase
-from midstack.backend.task import Task, CastComplexFloat, TaskArgsAnalog, TaskResultAnalog
-
-from analog_sim.interface import QutipExperiment, TaskArgsQutip
-
-from analog_sim.passes import (
+from analog_emulator.passes import (
     run_qutip_experiment,
     compiler_analog_args_to_qutipIR,
     compiler_analog_circuit_to_qutipIR,
 )
 
-from midstack.compiler.analog.passes.canonicalize import (
+from core.compiler.analog.passes.canonicalize import (
     analog_operator_canonicalization,
 )
-from midstack.compiler.analog.passes.assign import (
+from core.compiler.analog.passes.assign import (
     assign_analog_circuit_dim,
     verify_analog_args_dim,
 )
@@ -29,7 +24,7 @@ __all__ = [
 ]
 
 from oqd_compiler_infrastructure import VisitableBaseModel
-from midstack.backend.task import TaskArgsBase, TaskResultsBase
+from core.backend.task import TaskArgsBase, TaskResultsBase
 
 ########################################################################################
 

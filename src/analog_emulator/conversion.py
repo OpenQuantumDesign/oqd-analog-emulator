@@ -4,11 +4,11 @@ import time
 import qutip as qt
 
 from oqd_compiler_infrastructure import ConversionRule, RewriteRule
-from midstack.backend.task import TaskResultAnalog
+from core.backend.task import TaskResultAnalog
 
 ########################################################################################
 
-from midstack.compiler.math.passes import evaluate_math_expr, simplify_math_expr
+from core.compiler.math.passes import evaluate_math_expr, simplify_math_expr
 from .interface import (
     QutipExperiment,
     QutipOperation,

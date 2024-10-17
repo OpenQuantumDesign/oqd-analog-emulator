@@ -9,8 +9,8 @@ from oqd_compiler_infrastructure import VisitableBaseModel
 
 ########################################################################################
 
-from midstack.interface.math import MathExpr
-from midstack.backend.metric import *
+from core.interface.math import MathExpr
+from core.backend.metric import *
 
 ########################################################################################
 

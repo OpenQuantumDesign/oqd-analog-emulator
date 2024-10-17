@@ -14,13 +14,13 @@ from unittest_prettify.colorize import (
 ########################################################################################
 
 
-from midstack.interface.analog.operator import *
-from midstack.interface.analog.operation import *
-from midstack.interface.math import MathStr
-from midstack.backend.metric import *
-from midstack.backend.task import Task
-from analog_sim.base import TaskArgsAnalogSimulator
-from midstack.backend import QutipBackend
+from core.interface.analog.operator import *
+from core.interface.analog.operation import *
+from core.interface.math import MathStr
+from core.backend.metric import *
+from core.backend.task import Task
+from analog_emulator.base import TaskArgsAnalogSimulator
+from core.backend import QutipBackend
 
 ########################################################################################
 
