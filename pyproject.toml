@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "analog-simulator"
+name = "analog-emulator"
 version = "0.0.0"
 requires-python = ">=3.10"
 dependencies = [
@@ -31,4 +31,4 @@ test = ["unittest_prettify"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["analog_sim*"]
+include = ["analog_emulator*"]
