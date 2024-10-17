@@ -1,7 +1,7 @@
-site_name: Open Quantum Design
+site_name: "Open Quantum Design - Analog Emulator"
 
-repo_name: OpenQuantumDesign/analog-simulator
-repo_url: https://github.com/OpenQuantumDesign/analog-simulator
+repo_name: OpenQuantumDesign/oqd-analog-emulator
+repo_url: https://github.com/OpenQuantumDesign/oqd-analog-emulator
 
 copyright: Copyright &copy; 2024 Open Quantum Design
 
@@ -21,8 +21,8 @@ nav:
   - Explanation:
       - QuTip Simulation: explanation/qutip-simulation.md
   - API Reference:
-#      - Task: reference/task_backend.md
       - Qutip: reference/qutip_backend.md
+      - Compilation: reference/qutip_compiler.md
 
 theme:
   name: material
