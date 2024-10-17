@@ -47,9 +47,6 @@ class QutipBackend(BackendBase):
             converted_args (TaskArgsQutip): args of analog layer are converted to args for QuTip.
 
         """
-
-
-
         # pass to canonicaliza the operators in the AnalogCircuit
         canonicalized_circuit = analog_operator_canonicalization(task.program)
 
@@ -85,10 +82,9 @@ class QutipBackend(BackendBase):
 
     def run(
         self,
-        *,
-        task: Task = None,
-        experiment: QutipExperiment = None,
-        args: TaskArgsQutip = None,
+        task: Task,
+        # experiment: QutipExperiment = None,
+        # args: TaskArgsQutip = None,
     ):
         """
         Method to simulate an experiment using theQuTip backend
@@ -104,13 +100,15 @@ class QutipBackend(BackendBase):
             only one of task or experiment must be provided.
         """
 
-        if experiment is None and args is not None:
-            raise TypeError("args provided without QuTip experiment")
-        if experiment is not None and args is None:
-            raise TypeError("QuTip experiment provided without args")
+        # if experiment is None and args is not None:
+        #     raise TypeError("args provided without QuTip experiment")
+        # if experiment is not None and args is None:
+        #     raise TypeError("QuTip experiment provided without args")
+        #
+        # if task is not None and experiment is not None:
+        #     raise TypeError("Both task and experiment are given as inputs to run")
+        # if experiment is None:
+        #     experiment, args = self.compile(task=task)
 
-        if task is not None and experiment is not None:
-            raise TypeError("Both task and experiment are given as inputs to run")
-        if experiment is None:
-            experiment, args = self.compile(task=task)
+        experiment, args = self.compile(task=task)
         return run_qutip_experiment(model=experiment, args=args)
