@@ -3,13 +3,13 @@
 To install via `pip`,
 
 ```bash
-pip install git+https://github.com/OpenQuantumDesign/midstack.git
+pip install git+https://github.com/OpenQuantumDesign/oqd-analog-emulator.git
 ```
 
 To clone the repository locally:
 
 ```bash
-git clone https://github.com/OpenQuantumDesign/midstack
+git clone https://github.com/OpenQuantumDesign/oqd-analog-emulator.git
 ```
 
 Install the folder locally with `pip` and add to the

@@ -17,18 +17,15 @@ from rich import print as pprint
 import numpy as np
 
 from core.interface.analog.operator import *
-from core.interface.analog.operations import *
+from core.interface.analog.operation import *
 from core.backend.metric import *
-from core.backend.task import Task
-from analog_emulator.base import TaskArgsAnalogSimulator
-from core.backend import QutipBackend
-
-from examples.emulation.utils import plot_metrics_counts
+from core.backend.task import Task, TaskArgsAnalog
+from analog_emulator.qutip_backend import QutipBackend
 ```
 
 ///
 
-Then we define the [`AnalogGate`][midstack.interface.analog.operations.AnalogGate] object
+Then we define the [`AnalogGate`][core.interface.analog.operations.AnalogGate] object
 
 ```py
 """For simplicity we initialize the X Operator"""
@@ -37,7 +34,7 @@ X = PauliX()
 H = AnalogGate(hamiltonian= -(np.pi / 4) * X)
 ```
 
-Then we define the [`AnalogCircuit`][midstack.interface.analog.operations.AnalogCircuit] object and evolve it according to the hamiltonian defined above
+Then we define the [`AnalogCircuit`][core.interface.analog.operations.AnalogCircuit] object and evolve it according to the hamiltonian defined above
 
 ```py
 ac = AnalogCircuit()
@@ -57,13 +54,13 @@ args = TaskArgsAnalog(
 )
 ```
 
-We can then wrap the [`AnalogCircuit`][midstack.interface.analog.operations.AnalogCircuit] and the args to a [`Task`][midstack.backend.task.Task] object and run using the QuTip backend. Note that there are 2 ways to run and the 2 ways are explained.
+We can then wrap the [`AnalogCircuit`][core.interface.analog.operations.AnalogCircuit] and the args to a [`Task`][core.backend.task.Task] object and run using the QuTip backend. Note that there are 2 ways to run and the 2 ways are explained.
 
 ## Running the simulation
 
-First initialize the [`QutipBackend`][midstack.backend.qutip.base.QutipBackend] object.
+First initialize the [`QutipBackend`][core.backend.qutip.base.QutipBackend] object.
 === "Compile & Simulate"
-The [`Task`][midstack.backend.task.Task] can be compiled first to a [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] object and then this [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] object can be run. This is to allow you to see what parameters are used to specify the particular QuTip experiment.
+The [`Task`][core.backend.task.Task] can be compiled first to a [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] object and then this [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] object can be run. This is to allow you to see what parameters are used to specify the particular QuTip experiment.
 
     ``` py
     backend = QutipBackend()
@@ -72,26 +69,10 @@ The [`Task`][midstack.backend.task.Task] can be compiled first to a [`QutipExper
     ```
 
 === "Directly Simulate"
-The [`Task`][midstack.backend.task.Task] object can be directly simulated by the `run()` method.
+The [`Task`][core.backend.task.Task] object can be directly simulated by the `run()` method.
 
     ``` py
     backend = QutipBackend()
     results = backend.run(task = task)
     ```
 
-## Results
-
-Finally we can plot the metrics and relevant statistics from the final quantum state:
-
-```py
-plot_metrics_counts(
-    results = results,
-    experiment_name = "one-qubit-rabi-flopping.png",
-)
-```
-
-The generated image is like:
-
-<!-- ![Two Site TFIM](img/plots/tfim_2_site.png)  -->
-
-![Entropy of entanglement](../img/plots/one-qubit-rabi-flopping.png)

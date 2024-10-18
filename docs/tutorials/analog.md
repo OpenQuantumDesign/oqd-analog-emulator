@@ -1,8 +1,10 @@
 ## Analog mode
 
-In analog mode, the central object is an `AnalogCircuit`. An instance of `AnalogCircuit` can be evolved for duration `t` according to an `AnalogGate`. The `AnalogGate` contains a hamiltonian `H` which is an instance of `Operator`.
+In analog mode, the central object is an `AnalogCircuit`. 
+An instance of `AnalogCircuit` can be evolved for duration `t` according to an `AnalogGate`. 
+The `AnalogGate` contains a hamiltonian `H` which is an instance of `Operator`.
 As an example, we will perform a Rabi flopping experiment, where one qubit evolves under a driving field.
-The (time-independent) Hamiltonian, which govens the quantum evolution, is,
+The (time-independent) Hamiltonian, which governs the quantum evolution, is,
 
 $$
 H = \sigma^x
@@ -16,20 +18,19 @@ $$
 
 ### Creating an analog quantum circuit
 
-In `midstack`, time evolution is specified as an **analog gate** (`AnalogGate`).
+In `core`, time evolution is specified as an **analog gate** (`AnalogGate`).
 For example, to implement the one-qubit Rabi flopping from above,
 
 ```py
 import numpy as np
 from core.interface.analog.operator import PauliX
-from core.interface.analog.dissipation import Dissipation
-from core.interface.analog.operations import AnalogGate, AnalogCircuit
+from core.interface.analog.operation import AnalogGate, AnalogCircuit
 
 circuit = AnalogCircuit()
 gate = AnalogGate(hamiltonian=-(np.pi / 4) * PauliX())
 circuit.evolve(
     duration=1.0,
-    gate=H
+    gate=gate
 )
 ```
 
@@ -58,7 +59,7 @@ Operator objects `Operator` can (largely) be manipulated like normal Python obje
 
 In our language we represent all operators as abstract syntax trees. this the operator
 ` PauliX() @ PauliX()`
-would be reprsented as the tree:
+would be represented as the tree:
 
 ```mermaid
 graph TD;
@@ -68,11 +69,5 @@ graph TD;
 
 ///
 
-We will go through concrete examples of how to get started with this in Analog Demos
 
-## Atomic mode
 
-## Classical emulators
-
-Each mode has a suite of backend classical emulators for designing,
-benchmarking, and studying programs run on quantum computers.

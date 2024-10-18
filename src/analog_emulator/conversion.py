@@ -91,7 +91,7 @@ class QutipExperimentVM(RewriteRule):
     This is a Virtual Machine which takes in a QutipExperiment object, simulates the experiment and then produces the results
 
     Args:
-        model (QutipExperiment): This is the compiled  [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] object
+        model (QutipExperiment): This is the compiled  [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] object
 
     Returns:
         task (TaskResultAnalog):
@@ -181,7 +181,7 @@ class QutipExperimentVM(RewriteRule):
 
 class QutipBackendCompiler(ConversionRule):
     """
-    This is a ConversionRule which which compiles analog layer objects to QutipExperiment objects
+    This is a ConversionRule which compiles analog layer objects to QutipExperiment objects
 
     Args:
         model (VisitableBaseModel): This takes in objects in Analog level and converts them to representations which can be used to run QuTip simulations.

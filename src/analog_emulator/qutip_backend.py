@@ -50,8 +50,8 @@ class QutipBackend(BackendBase):
 
     def compile(self, task: Task):
         """
-        Method for compiling program of task to a [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] and converting
-        args of task to [`TaskArgsQutip`][midstack.backend.qutip.interface.TaskArgsQutip].
+        Method for compiling program of task to a [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] and converting
+        args of task to [`TaskArgsQutip`][core.backend.qutip.interface.TaskArgsQutip].
 
         Args:
             task (Task): Quantum experiment to compile
@@ -97,15 +97,13 @@ class QutipBackend(BackendBase):
     def run(
         self,
         task: Task,
-        # experiment: QutipExperiment = None,
-        # args: TaskArgsQutip = None,
     ):
         """
         Method to simulate an experiment using theQuTip backend
 
         Args:
-            task (Optional[Task]): Run experiment from a [`Task`][midstack.backend.task.Task] object
-            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] object
+            task (Optional[Task]): Run experiment from a [`Task`][core.backend.task.Task] object
+            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] object
 
         Returns:
             TaskResultAnalog object containing the simulation results.
@@ -125,4 +123,5 @@ class QutipBackend(BackendBase):
         #     experiment, args = self.compile(task=task)
 
         experiment, args = self.compile(task=task)
+
         return run_qutip_experiment(model=experiment, args=args)
