@@ -103,7 +103,7 @@ class QutipBackend(BackendBase):
 
         Args:
             task (Optional[Task]): Run experiment from a [`Task`][core.backend.task.Task] object
-            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] object
+            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] object
 
         Returns:
             TaskResultAnalog object containing the simulation results.
