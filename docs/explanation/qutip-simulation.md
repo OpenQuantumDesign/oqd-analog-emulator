@@ -1,7 +1,7 @@
 ## Compilation
 
 We first compile `AnalogCircuit` to a [`QutipExperiment`][analog_emulator.conversion.QutipExperimentVM] 
-using the ConversionRule [`QutipBackendCompiler`][core.backend.qutip.conversion.QutipBackendCompiler].
+using the ConversionRule [`QutipBackendCompiler`][analog_emulator.qutip_backend.QutipBackendCompiler].
 We also then separately convert the args of Analog layer to a corresponding representation of the args
 which can be processed by QuTip. The [`compile`][analog_emulator.qutip_backend.QutipBackend.compile] functions
 is used to compile `AnalogCircuit` to a 
@@ -12,7 +12,7 @@ is used to compile `AnalogCircuit` to a
 After compilation, the actual experiment is run through a Virtual Machine. 
 In classical compilers Virtual Machines takes in list of instructions and runs them. 
 Similarly, the QutipExperiment object has an `instructions` attribute which is a 
-list of [`QutipOperation`][core.backend.qutip.interface.QutipOperation] that can be 
+list of [`QutipOperation`][analog_emulator.qutip_backend.QutipOperation] that can be 
 run through qutip's `sesolve` function.
 
 ```mermaid

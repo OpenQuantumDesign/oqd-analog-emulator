@@ -2,7 +2,7 @@
 
 <div align="center">
     <h2 align="center">
-        Program the world's first open-source, full-stack quantum computer.
+        Open Quantum Design: Analog Emulators
     </h2>
 </div>
 
