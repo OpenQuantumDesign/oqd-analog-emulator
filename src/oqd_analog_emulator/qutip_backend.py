@@ -97,8 +97,8 @@ class QutipBackend(BackendBase):
         Method to simulate an experiment using theQuTip backend
 
         Args:
-            task (Optional[Task]): Run experiment from a [`Task`][core.backend.task.Task] object
-            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][midstack.backend.qutip.interface.QutipExperiment] object
+            task (Optional[Task]): Run experiment from a [`Task`][oqd_core.backend.task.Task] object
+            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][oqd_analog_emulator.qutip_backend.QutipExperiment] object
 
         Returns:
             TaskResultAnalog object containing the simulation results.
