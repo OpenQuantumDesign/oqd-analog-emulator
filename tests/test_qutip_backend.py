@@ -28,13 +28,13 @@ from unittest_prettify.colorize import (
 ########################################################################################
 
 
-from core.interface.analog.operator import *
-from core.interface.analog.operation import *
-from core.interface.math import MathStr
-from core.backend.metric import *
-from core.backend.task import Task
-from analog_emulator.base import TaskArgsAnalogSimulator
-from core.backend import QutipBackend
+from oqd_core.interface.analog.operator import *
+from oqd_core.interface.analog.operation import *
+from oqd_core.interface.math import MathStr
+from oqd_core.backend.metric import *
+from oqd_core.backend.task import Task
+from oqd_analog_emulator.base import TaskArgsAnalogSimulator
+from oqd_core.backend import QutipBackend
 
 ########################################################################################
 

@@ -16,11 +16,11 @@ from rich import print as pprint
 
 import numpy as np
 
-from core.interface.analog.operator import *
-from core.interface.analog.operation import *
-from core.backend.metric import *
-from core.backend.task import Task, TaskArgsAnalog
-from analog_emulator.qutip_backend import QutipBackend
+from oqd_core.interface.analog.operator import *
+from oqd_core.interface.analog.operation import *
+from oqd_core.backend.metric import *
+from oqd_core.backend.task import Task, TaskArgsAnalog
+from oqd_analog_emulator.qutip_backend import QutipBackend
 ```
 
 ///

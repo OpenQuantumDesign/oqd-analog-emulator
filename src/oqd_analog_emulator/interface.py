@@ -23,8 +23,8 @@ from oqd_compiler_infrastructure import VisitableBaseModel
 
 ########################################################################################
 
-from core.interface.math import MathExpr
-from core.backend.metric import *
+from oqd_core.interface.math import MathExpr
+from oqd_core.backend.metric import *
 
 ########################################################################################
 

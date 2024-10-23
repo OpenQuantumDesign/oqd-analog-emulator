@@ -1,4 +1,4 @@
-::: analog_emulator.passes
+::: oqd_analog_emulator.passes
 
 
-::: analog_emulator.conversion
+::: oqd_analog_emulator.conversion

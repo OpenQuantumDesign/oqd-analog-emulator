@@ -18,12 +18,12 @@ import time
 import qutip as qt
 
 from oqd_compiler_infrastructure import ConversionRule, RewriteRule
-from core.backend.task import TaskResultAnalog
+from oqd_core.backend.task import TaskResultAnalog
+from oqd_core.compiler.math.passes import evaluate_math_expr, simplify_math_expr
 
 ########################################################################################
 
-from core.compiler.math.passes import evaluate_math_expr, simplify_math_expr
-from .interface import (
+from oqd_analog_emulator.interface import (
     QutipExperiment,
     QutipOperation,
     QutipMeasurement,

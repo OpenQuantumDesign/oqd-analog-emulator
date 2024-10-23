@@ -12,21 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from core.backend.base import BackendBase
-from core.backend.task import Task
+from oqd_core.backend.base import BackendBase
+from oqd_core.backend.task import Task
 
-from analog_emulator.interface import QutipExperiment, TaskArgsQutip
-
-from analog_emulator.passes import (
+from oqd_analog_emulator.passes import (
     run_qutip_experiment,
     compiler_analog_args_to_qutipIR,
     compiler_analog_circuit_to_qutipIR,
 )
 
-from core.compiler.analog.passes.canonicalize import (
+from oqd_core.compiler.analog.passes.canonicalize import (
     analog_operator_canonicalization,
 )
-from core.compiler.analog.passes.assign import (
+from oqd_core.compiler.analog.passes.assign import (
     assign_analog_circuit_dim,
     verify_analog_args_dim,
 )
@@ -36,9 +34,6 @@ from core.compiler.analog.passes.assign import (
 __all__ = [
     "QutipBackend",
 ]
-
-from oqd_compiler_infrastructure import VisitableBaseModel
-from core.backend.task import TaskArgsBase, TaskResultsBase
 
 ########################################################################################
 

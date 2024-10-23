@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .conversion import (
+from oqd_analog_emulator.conversion import (
     QutipBackendCompiler,
     QutipExperimentVM,
     QutipMetricConversion,
