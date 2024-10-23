@@ -91,7 +91,7 @@ class QutipExperimentVM(RewriteRule):
     This is a Virtual Machine which takes in a QutipExperiment object, simulates the experiment and then produces the results
 
     Args:
-        model (QutipExperiment): This is the compiled  [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] object
+        model (QutipExperiment): This is the compiled  [`QutipExperiment`][oqd_analog_emulator.qutip_backend.QutipExperiment] object
 
     Returns:
         task (TaskResultAnalog):

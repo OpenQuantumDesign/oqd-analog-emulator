@@ -33,7 +33,7 @@ __all__ = [
 
 def compiler_analog_circuit_to_qutipIR(model, fock_cutoff):
     """
-    This compiles ([`AnalogCircuit`][core.interface.analog.operations.AnalogCircuit] to a list of  [`QutipOperation`][core.backend.qutip.interface.QutipOperation] objects
+    This compiles ([`AnalogCircuit`][oqd_core.interface.analog.operation.AnalogCircuit] to a list of  [`QutipOperation`][oqd_analog_emulator.interface.QutipOperation] objects
 
     Args:
         model (AnalogCircuit):
@@ -63,7 +63,7 @@ def compiler_analog_args_to_qutipIR(model):
 
 def run_qutip_experiment(model: QutipExperimentVM, args):
     """
-    This takes in a [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] and produces a TaskResultAnalog object
+    This takes in a [`QutipExperiment`][oqd_analog_emulator.interface.QutipExperiment] and produces a TaskResultAnalog object
 
     Args:
         model (QutipExperiment):

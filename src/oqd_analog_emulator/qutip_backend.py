@@ -45,8 +45,8 @@ class QutipBackend(BackendBase):
 
     def compile(self, task: Task):
         """
-        Method for compiling program of task to a [`QutipExperiment`][core.backend.qutip.interface.QutipExperiment] and converting
-        args of task to [`TaskArgsQutip`][core.backend.qutip.interface.TaskArgsQutip].
+        Method for compiling program of task to a [`QutipExperiment`][oqd_analog_emulator.interface.QutipExperiment] and converting
+        args of task to [`TaskArgsAnalog`][oqd_core.backend.task.TaskArgsAnalog].
 
         Args:
             task (Task): Quantum experiment to compile
@@ -94,11 +94,10 @@ class QutipBackend(BackendBase):
         task: Task,
     ):
         """
-        Method to simulate an experiment using theQuTip backend
+        Method to simulate an experiment using the QuTip backend
 
         Args:
             task (Optional[Task]): Run experiment from a [`Task`][oqd_core.backend.task.Task] object
-            experiment (Optional[QutipExperiment]): Run experiment from a [`QutipExperiment`][oqd_analog_emulator.qutip_backend.QutipExperiment] object
 
         Returns:
             TaskResultAnalog object containing the simulation results.
