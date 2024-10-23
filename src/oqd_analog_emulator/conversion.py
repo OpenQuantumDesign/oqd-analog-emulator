@@ -130,7 +130,6 @@ class QutipExperimentVM(RewriteRule):
         if self._n_shots is None:
             self.results.counts = {}
         else:
-            print(self.current_state)
             probs = np.power(np.abs(self.current_state.full()), 2).squeeze()
             n_shots = self._n_shots
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
