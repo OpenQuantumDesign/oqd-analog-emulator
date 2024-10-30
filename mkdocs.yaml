@@ -88,8 +88,6 @@ plugins:
             - https://pandas.pydata.org/docs/objects.inv
             - https://matplotlib.org/stable/objects.inv
             - https://numpy.org/doc/stable/objects.inv
-  - mkdocs-jupyter:
-      ignore_h1_titles: True
 
 markdown_extensions:
   - attr_list

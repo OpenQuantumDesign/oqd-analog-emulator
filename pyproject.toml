@@ -13,7 +13,7 @@ dependencies = [
     "Cython~=3.0.10",
     "filelock~=3.13.4",
     "numpy~=1.0",
-#    "oqd_compiler_infrastructure",
+    #    "oqd_compiler_infrastructure",
 ]
 
 [project.optional-dependencies]
@@ -23,9 +23,6 @@ docs = [
     "mkdocs-material",
     "mkdocstrings-python",
     "mdx_truly_sane_lists",
-    "jupyter",
-    "jupyter_contrib_nbextensions",
-    "mkdocs-jupyter",
 ]
 test = ["unittest_prettify"]
 
