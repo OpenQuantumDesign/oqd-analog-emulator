@@ -17,9 +17,13 @@ import itertools
 import time
 import qutip as qt
 
-from oqd_compiler_infrastructure import ConversionRule, RewriteRule
+from oqd_compiler_infrastructure import ConversionRule, RewriteRule, Chain
 from oqd_core.backend.task import TaskResultAnalog
-from oqd_core.compiler.math.passes import evaluate_math_expr, simplify_math_expr
+from oqd_core.compiler.math.passes import (
+    evaluate_math_expr,
+    simplify_math_expr,
+    print_math_expr,
+)
 
 ########################################################################################
 
@@ -154,7 +158,9 @@ class QutipExperimentVM(RewriteRule):
 
         qutip_hamiltonian = []
         for op, coeff in model.hamiltonian:
-            qutip_hamiltonian.append([op, simplify_math_expr(coeff)])
+            qutip_hamiltonian.append(
+                [op, Chain(simplify_math_expr, print_math_expr)(coeff)]
+            )
 
         start_runtime = time.time()
         result_qobj = qt.sesolve(
