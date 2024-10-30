@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install git+ssh://git@github.com/OpenQuantumDesign/compiler_infrastructure
+          pip install git+ssh://git@github.com/OpenQuantumDesign/oqd-compiler-infrastructure
           pip install .[test]
       - name: Run unittest
         run: |
