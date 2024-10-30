@@ -14,8 +14,6 @@
 
 import numpy as np
 
-from rich import print as pprint
-
 import unittest
 from unittest_prettify.colorize import (
     colorize,
@@ -32,9 +30,8 @@ from oqd_core.interface.analog.operator import *
 from oqd_core.interface.analog.operation import *
 from oqd_core.interface.math import MathStr
 from oqd_core.backend.metric import *
-from oqd_core.backend.task import Task
-from oqd_analog_emulator.base import TaskArgsAnalogSimulator
-from oqd_core.backend import QutipBackend
+from oqd_core.backend.task import Task, TaskArgsAnalog
+from oqd_analog_emulator.qutip_backend import QutipBackend
 
 ########################################################################################
 
@@ -59,7 +56,7 @@ def one_qubit_rabi_flopping_protocol():
     ac.evolve(duration=1, gate=Hx)
 
     # define task args
-    args = TaskArgsAnalogSimulator(
+    args = TaskArgsAnalog(
         n_shots=100,
         fock_cutoff=4,
         metrics={
@@ -97,7 +94,7 @@ def bell_state_standard_protocol():
     ac.evolve(duration=np.pi / 4, gate=Hii)
 
     # define task args
-    args = TaskArgsAnalogSimulator(
+    args = TaskArgsAnalog(
         n_shots=100,
         fock_cutoff=4,
         metrics={
@@ -151,7 +148,7 @@ def three_qubit_GHz_protocol():
     ac.evolve(duration=np.pi / 4, gate=Hii)
 
     # define task args
-    args = TaskArgsAnalogSimulator(
+    args = TaskArgsAnalog(
         n_shots=500,
         fock_cutoff=4,
         metrics={
@@ -261,7 +258,7 @@ class QutipBackendSimulation(TestListClose, unittest.TestCase):
         ac.evolve(duration=1, gate=H1)
         ac.evolve(duration=1, gate=H1_inv)
         # define task args
-        args = TaskArgsAnalogSimulator(
+        args = TaskArgsAnalog(
             n_shots=100,
             fock_cutoff=4,
             metrics={
@@ -297,7 +294,7 @@ class QutipBackendSimulation(TestListClose, unittest.TestCase):
         ac.evolve(duration=1, gate=H1)
         ac.evolve(duration=1, gate=H1_inv)
         # define task args
-        args = TaskArgsAnalogSimulator(
+        args = TaskArgsAnalog(
             n_shots=100,
             fock_cutoff=4,
             metrics={
@@ -329,7 +326,7 @@ class QutipBackendSimulation(TestListClose, unittest.TestCase):
         ac.evolve(duration=1, gate=H1)
         ac.evolve(duration=1, gate=H1_inv)
         # define task args
-        args = TaskArgsAnalogSimulator(
+        args = TaskArgsAnalog(
             n_shots=500,
             fock_cutoff=4,
             metrics={
@@ -379,7 +376,7 @@ class QutipBackendSimulation(TestListClose, unittest.TestCase):
         ac.evolve(duration=1, gate=H3_inv)
 
         # define task args
-        args = TaskArgsAnalogSimulator(
+        args = TaskArgsAnalog(
             n_shots=500,
             fock_cutoff=4,
             metrics={
@@ -415,7 +412,7 @@ class QutipBackendSimulation(TestListClose, unittest.TestCase):
         ac, _ = one_qubit_rabi_flopping_protocol()
 
         # define task args
-        args = TaskArgsAnalogSimulator(
+        args = TaskArgsAnalog(
             n_shots=None,
             fock_cutoff=4,
             metrics={},
