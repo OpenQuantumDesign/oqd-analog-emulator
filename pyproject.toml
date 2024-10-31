@@ -7,6 +7,26 @@ build-backend = "setuptools.build_meta"
 name = "oqd-analog-emulator"
 version = "0.0.0"
 requires-python = ">=3.10"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["quantum", "computing", "analog", "simulation", "emulation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+
+  "Intended Audience :: Science/Research ",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Compilers",
+
+  "License :: OSI Approved :: Apache Software License",
+
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+
 dependencies = [
     "pydantic>=2.4",
     "qutip==5.0.1",
@@ -30,3 +50,9 @@ test = ["unittest_prettify"]
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["oqd_analog_emulator*"]
+
+
+[project.urls]
+Homepage = "https://github.com/OpenQuantumDesign/oqd-analog-emulator"
+Repository = "https://github.com/OpenQuantumDesign/oqd-analog-emulator.git"
+Issues = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
