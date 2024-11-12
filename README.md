@@ -1,10 +1,17 @@
-# ![Open Quantum Design](docs/img/oqd-logo-text.png)
+# ![Open Quantum Design](https://raw.githubusercontent.com/OpenQuantumDesign/oqd-compiler-infrastructure/main/docs/img/oqd-logo-text.png)
 
-![Python](https://img.shields.io/badge/Python-3.10_|_3.11_|_3.12-blue)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 <h2 align="center">
     Open Quantum Design: Analog Emulator
 </h2>
+
+[![doc](https://img.shields.io/badge/documentation-lightblue)](https://docs.openquantumdesign.org/open-quantum-design-analog-emulator)
+[![PyPI Version](https://img.shields.io/pypi/v/oqd-analog-emulator)](https://pypi.org/project/oqd-analog-emulator)
+[![CI](https://github.com/OpenQuantumDesign/oqd-analog-emulator/actions/workflows/pytest.yml/badge.svg)](https://github.com/OpenQuantumDesign/oqd-analog-emulator/actions/workflows/pytest.yml)
+![versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+[![black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](https://opensource.org/licenses/Apache-2.0)
+
+
 
 ## What's here
 
@@ -14,7 +21,10 @@
 ## Installation <a name="installation"></a>
 
 To install,
-
+```bash
+pip install oqd-analog-emulator
+```
+or
 ```bash
 pip install git+https://github.com/OpenQuantumDesign/oqd-analog-emulator.git
 ```
@@ -27,11 +37,11 @@ pip install .
 ```
 
 This OQD repository depends on the [`oqd-core`](https://github.com/OpenQuantumDesign/oqd-core.git)
-and [`oqd-compiler-infrastructure`](https://github.com/OpenQuantumDesign/oqd-compiler-infrastructure.git) packages.
-
+and [`oqd-compiler-infrastructure`](https://github.com/OpenQuantumDesign/oqd-compiler-infrastructure.git) packages, which should be installed with all other dependencies. 
+If needed, these can be manually installed via,
 ```bash
-pip install git+https://github.com/OpenQuantumDesign/oqd-compiler-infrastructure.git
-pip install git+https://github.com/OpenQuantumDesign/oqd-core.git
+pip install oqd-compiler-infrastructure
+pip install oqd-core
 ```
 
 ## Getting Started <a name="Getting Started"></a>
