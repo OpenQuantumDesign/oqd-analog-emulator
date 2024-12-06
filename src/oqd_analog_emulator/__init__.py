@@ -13,3 +13,5 @@
 # limitations under the License.
 
 from .qutip_backend import QutipBackend
+
+__all__ = ["QutipBackend"]

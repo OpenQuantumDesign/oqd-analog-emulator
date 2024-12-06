@@ -75,13 +75,16 @@ class QutipMetricConversion(ConversionRule):
         self._n_qmode = n_qmode
 
     def map_QutipExpectation(self, model, operands):
+        assert len(model.operator) > 0, "List of operator terms must be non-empty"
+
+        op_exp = None
         for idx, operator in enumerate(model.operator):
             coefficient = evaluate_math_expr(operator[1])
-            op_exp = (
-                coefficient * operator[0]
-                if idx == 0
-                else op_exp + coefficient * operator[0]
-            )
+            if idx == 0:
+                op_exp = coefficient * operator[0]
+            else:
+                op_exp + coefficient * operator[0]
+                
         return lambda t, psi: qt.expect(op_exp, psi)
 
     def map_EntanglementEntropyVN(self, model, operands):
