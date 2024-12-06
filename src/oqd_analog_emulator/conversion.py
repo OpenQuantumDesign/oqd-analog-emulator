@@ -84,7 +84,7 @@ class QutipMetricConversion(ConversionRule):
                 op_exp = coefficient * operator[0]
             else:
                 op_exp + coefficient * operator[0]
-                
+
         return lambda t, psi: qt.expect(op_exp, psi)
 
     def map_EntanglementEntropyVN(self, model, operands):
@@ -116,7 +116,6 @@ class QutipExperimentVM(RewriteRule):
         self._dt = dt
 
     def map_QutipExperiment(self, model):
-
         dims = model.n_qreg * [2] + model.n_qmode * [self._fock_cutoff]
         self.n_qreg = model.n_qreg
         self.n_qmode = model.n_qmode
@@ -155,7 +154,6 @@ class QutipExperimentVM(RewriteRule):
         )
 
     def map_QutipOperation(self, model):
-
         duration = model.duration
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
 

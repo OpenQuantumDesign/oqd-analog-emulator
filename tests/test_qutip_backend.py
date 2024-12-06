@@ -20,16 +20,23 @@ import numpy as np
 ########################################################################################
 
 
-from oqd_core.interface.analog.operator import *
-from oqd_core.interface.analog.operation import *
-from oqd_core.interface.math import MathStr
-from oqd_core.backend.metric import *
+from oqd_core.interface.analog.operator import (
+    Annihilation,
+    Creation,
+    Identity,
+    PauliI,
+    PauliX,
+    PauliY,
+    PauliZ,
+)
+from oqd_core.interface.analog.operation import AnalogCircuit, AnalogGate
+from oqd_core.backend.metric import Expectation
 from oqd_core.backend.task import Task, TaskArgsAnalog
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
 ########################################################################################
 
-X, Y, Z, I, A, C, LI = (
+X, Y, Z, PI, A, C, LI = (
     PauliX(),
     PauliY(),
     PauliZ(),
@@ -61,14 +68,13 @@ def one_qubit_rabi_flopping_protocol():
 
 @pytest.fixture
 def bell_state_standard_protocol():
-
-    Hii = AnalogGate(hamiltonian=I @ I)
-    Hxi = AnalogGate(hamiltonian=X @ I)
-    Hyi = AnalogGate(hamiltonian=Y @ I)
+    Hii = AnalogGate(hamiltonian=PI @ PI)
+    Hxi = AnalogGate(hamiltonian=X @ PI)
+    Hyi = AnalogGate(hamiltonian=Y @ PI)
     Hxx = AnalogGate(hamiltonian=X @ X)
-    Hmix = AnalogGate(hamiltonian=(-1) * (I @ X))
-    Hmxi = AnalogGate(hamiltonian=(-1) * (X @ I))
-    Hmyi = AnalogGate(hamiltonian=(-1) * (Y @ I))
+    Hmix = AnalogGate(hamiltonian=(-1) * (PI @ X))
+    Hmxi = AnalogGate(hamiltonian=(-1) * (X @ PI))
+    Hmyi = AnalogGate(hamiltonian=(-1) * (Y @ PI))
 
     ac = AnalogCircuit()
 
@@ -90,8 +96,8 @@ def bell_state_standard_protocol():
         n_shots=100,
         fock_cutoff=4,
         metrics={
-            "Z^0": Expectation(operator=Z @ I),
-            "Z^1": Expectation(operator=I @ Z),
+            "Z^0": Expectation(operator=Z @ PI),
+            "Z^1": Expectation(operator=PI @ Z),
         },
         dt=1e-2,
     )
@@ -101,22 +107,21 @@ def bell_state_standard_protocol():
 
 @pytest.fixture
 def three_qubit_GHz_protocol():
-
     # Hadamard on first qubit
-    Hii = AnalogGate(hamiltonian=I @ I @ I)
-    Hxi = AnalogGate(hamiltonian=X @ I @ I)
-    Hyi = AnalogGate(hamiltonian=Y @ I @ I)
+    Hii = AnalogGate(hamiltonian=PI @ PI @ PI)
+    Hxi = AnalogGate(hamiltonian=X @ PI @ PI)
+    Hyi = AnalogGate(hamiltonian=Y @ PI @ PI)
 
     # CNOT on Second
-    Hxx2 = AnalogGate(hamiltonian=X @ X @ I)
-    Hmix2 = AnalogGate(hamiltonian=(-1) * (I @ X @ I))
+    Hxx2 = AnalogGate(hamiltonian=X @ X @ PI)
+    Hmix2 = AnalogGate(hamiltonian=(-1) * (PI @ X @ PI))
 
-    Hmxi = AnalogGate(hamiltonian=(-1) * (X @ I @ I))
-    Hmyi = AnalogGate(hamiltonian=(-1) * (Y @ I @ I))
+    Hmxi = AnalogGate(hamiltonian=(-1) * (X @ PI @ PI))
+    Hmyi = AnalogGate(hamiltonian=(-1) * (Y @ PI @ PI))
 
     # CNOT on Third
-    Hxx3 = AnalogGate(hamiltonian=X @ I @ X)
-    Hmix3 = AnalogGate(hamiltonian=(-1) * (I @ I @ X))
+    Hxx3 = AnalogGate(hamiltonian=X @ PI @ X)
+    Hmix3 = AnalogGate(hamiltonian=(-1) * (PI @ PI @ X))
     ac = AnalogCircuit()
 
     # Hadamard
@@ -145,9 +150,9 @@ def three_qubit_GHz_protocol():
         n_shots=500,
         fock_cutoff=4,
         metrics={
-            "Z^0": Expectation(operator=Z @ I @ I),
-            "Z^1": Expectation(operator=I @ Z @ I),
-            "Z^2": Expectation(operator=I @ I @ Z),
+            "Z^0": Expectation(operator=Z @ PI @ PI),
+            "Z^1": Expectation(operator=PI @ Z @ PI),
+            "Z^2": Expectation(operator=PI @ PI @ Z),
         },
         dt=1e-2,
     )
@@ -166,8 +171,9 @@ def get_amplitude_arrays(state: list):
 def assert_lists_close(list1, list2, tolerance=0.001):
     assert len(list1) == len(list2), "The input lists have different length"
     for i, (elem1, elem2) in enumerate(zip(list1, list2)):
-        assert abs(elem1 - elem2) <= tolerance, "List elements {i}, {elem1} and {elem2}, are out of tolerance"
-
+        assert (
+            abs(elem1 - elem2) <= tolerance
+        ), "List elements {i}, {elem1} and {elem2}, are out of tolerance"
 
 
 def test_one_qubit_rabi_flopping(one_qubit_rabi_flopping_protocol):
@@ -304,9 +310,9 @@ def test_identity_operation_three_qubit_simple():
         n_shots=500,
         fock_cutoff=4,
         metrics={
-            "Z^0": Expectation(operator=Z @ I @ I),
-            "Z^1": Expectation(operator=I @ Z @ I),
-            "Z^2": Expectation(operator=I @ I @ Z),
+            "Z^0": Expectation(operator=Z @ PI @ PI),
+            "Z^1": Expectation(operator=PI @ Z @ PI),
+            "Z^2": Expectation(operator=PI @ PI @ Z),
         },
         dt=1e-2,
     )
@@ -325,6 +331,7 @@ def test_identity_operation_three_qubit_simple():
     assert abs(results.metrics["Z^1"][-1] - 1) <= 0.001
     assert abs(results.metrics["Z^2"][-1] - 1) <= 0.001
 
+
 def test_identity_operation_three_qubit_nested():
     """Nested Identity operation using inverse for 3 qubits"""
     H1 = AnalogGate(hamiltonian=(-1) * (X @ Y @ Z))
@@ -333,8 +340,8 @@ def test_identity_operation_three_qubit_nested():
     H2 = AnalogGate(hamiltonian=(-1) * (X @ X @ X))
     H2_inv = AnalogGate(hamiltonian=X @ X @ X)
 
-    H3 = AnalogGate(hamiltonian=(-1) * (I @ X @ I))
-    H3_inv = AnalogGate(hamiltonian=I @ X @ I)
+    H3 = AnalogGate(hamiltonian=(-1) * (PI @ X @ PI))
+    H3_inv = AnalogGate(hamiltonian=PI @ X @ PI)
 
     ac = AnalogCircuit()
     ac.evolve(duration=1, gate=H1)
@@ -349,9 +356,9 @@ def test_identity_operation_three_qubit_nested():
         n_shots=500,
         fock_cutoff=4,
         metrics={
-            "Z^0": Expectation(operator=Z @ I @ I),
-            "Z^1": Expectation(operator=I @ Z @ I),
-            "Z^2": Expectation(operator=I @ I @ Z),
+            "Z^0": Expectation(operator=Z @ PI @ PI),
+            "Z^1": Expectation(operator=PI @ Z @ PI),
+            "Z^2": Expectation(operator=PI @ PI @ Z),
         },
         dt=1e-2,
     )
@@ -394,8 +401,7 @@ def test_metrics_count_none(one_qubit_rabi_flopping_protocol):
     assert results.metrics == {}
 
 
-
-def test_one_qubit_rabi_flopping(one_qubit_rabi_flopping_protocol):
+def test_one_qubit_rabi_flopping_canonicalization(one_qubit_rabi_flopping_protocol):
     """One qubit rabi flopping canonicalization"""
 
     _, args = one_qubit_rabi_flopping_protocol
@@ -420,20 +426,18 @@ def test_one_qubit_rabi_flopping(one_qubit_rabi_flopping_protocol):
     assert pytest.approx(results.metrics["Z"][-1], abs=0.001) == 0
 
 
-def test_bell_state_standard(bell_state_standard_protocol):
+def test_bell_state_canonicalization(bell_state_standard_protocol):
     """Standard Bell State preparation canonicalization"""
 
     _, args = bell_state_standard_protocol
 
-    Hii = AnalogGate(hamiltonian=1 * (I @ I))
-    Hxi = AnalogGate(hamiltonian=(X @ I))  # Scalar Multiplication not given
-    Hyi = AnalogGate(hamiltonian=1 * (Y @ I))
-    Hxx = AnalogGate(
-        hamiltonian=1 * (X @ (I * X * I))
-    )  # multiplication by identity
-    Hmix = AnalogGate(hamiltonian=(-1) * (I @ X))
-    Hmxi = AnalogGate(hamiltonian=(-1) * (X @ I))
-    Hmyi = AnalogGate(hamiltonian=(-0.5) * (Y @ (2 * I)))  # scalar multiplication
+    Hii = AnalogGate(hamiltonian=1 * (PI @ PI))
+    Hxi = AnalogGate(hamiltonian=(X @ PI))  # Scalar Multiplication not given
+    Hyi = AnalogGate(hamiltonian=1 * (Y @ PI))
+    Hxx = AnalogGate(hamiltonian=1 * (X @ (PI * X * PI)))  # multiplication by identity
+    Hmix = AnalogGate(hamiltonian=(-1) * (PI @ X))
+    Hmxi = AnalogGate(hamiltonian=(-1) * (X @ PI))
+    Hmyi = AnalogGate(hamiltonian=(-0.5) * (Y @ (2 * PI)))  # scalar multiplication
 
     ac = AnalogCircuit()
 
