@@ -30,6 +30,9 @@ classifiers = [
 dependencies = [
   "pydantic>=2.4",
   "qutip==5.1.1",
+  "Cython",
+  "filelock",
+  "setuptools",
   "oqd-compiler-infrastructure@git+https://github.com/openquantumdesign/oqd-compiler-infrastructure",
   "oqd-core@git+https://github.com/openquantumdesign/oqd-core",
 ]
