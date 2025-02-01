@@ -3,8 +3,11 @@ name: Ruff Static Code Analysis
 on: pull_request
 
 jobs:
-  lint:
+  ruff_static_code_analysis:
+    name: Ruff Static Code Analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: astral-sh/ruff-action@v2
+        with:
+          src: "./src"
