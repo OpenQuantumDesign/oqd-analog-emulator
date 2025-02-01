@@ -30,9 +30,9 @@ classifiers = [
 dependencies = [
   "pydantic>=2.4",
   "qutip==5.1.1",
-  "Cython~=3.0.10",
-  "filelock~=3.13.4",
-  "numpy~=1.0",
+  "Cython",
+  "filelock",
+  "setuptools",
   "oqd-compiler-infrastructure@git+https://github.com/openquantumdesign/oqd-compiler-infrastructure",
   "oqd-core@git+https://github.com/openquantumdesign/oqd-core",
 ]
@@ -43,9 +43,11 @@ docs = [
   "mkdocstrings",
   "mkdocs-material",
   "mkdocstrings-python",
-  "mdx_truly_sane_lists",
+  "mdx_truly_sane_lists"
 ]
-test = ["unittest_prettify"]
+test = [
+  "pytest"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

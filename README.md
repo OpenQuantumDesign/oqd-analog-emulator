@@ -4,12 +4,12 @@
     Open Quantum Design: Analog Emulator
 </h2>
 
-[![doc](https://img.shields.io/badge/documentation-lightblue)](https://docs.openquantumdesign.org/open-quantum-design-analog-emulator)
+[![Documentation](https://img.shields.io/badge/documentation-lightblue)](https://docs.openquantumdesign.org/open-quantum-design-analog-emulator)
 [![PyPI Version](https://img.shields.io/pypi/v/oqd-analog-emulator)](https://pypi.org/project/oqd-analog-emulator)
 [![CI](https://github.com/OpenQuantumDesign/oqd-analog-emulator/actions/workflows/pytest.yml/badge.svg)](https://github.com/OpenQuantumDesign/oqd-analog-emulator/actions/workflows/pytest.yml)
 ![versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
-[![black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 
 
