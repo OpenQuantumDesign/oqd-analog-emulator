@@ -1,10 +1,10 @@
 ## Compilation
 
-We first compile `AnalogCircuit` to a [`QutipExperiment`][oqd_analog_emulator.conversion.QutipExperimentVM] 
+We first compile `AnalogCircuit` to a [`QutipExperiment`][oqd_analog_emulator.conversion.QutipExperimentVM]
 using the ConversionRule [`QutipBackendCompiler`][oqd_analog_emulator.conversion.QutipBackendCompiler].
 We also then separately convert the args of Analog layer to a corresponding representation of the args
 which can be processed by QuTip. The [`compile`][oqd_analog_emulator.qutip_backend.QutipBackend.compile] functions
-is used to compile `AnalogCircuit` to a 
+is used to compile `AnalogCircuit` to a
 [`QutipExperiment`][oqd_analog_emulator.conversion.QutipExperimentVM] and also used to convert the args.
 
 ## Simulation

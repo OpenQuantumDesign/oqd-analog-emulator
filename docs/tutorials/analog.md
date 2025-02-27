@@ -1,7 +1,7 @@
 ## Analog mode
 
-In analog mode, the central object is an `AnalogCircuit`. 
-An instance of `AnalogCircuit` can be evolved for duration `t` according to an `AnalogGate`. 
+In analog mode, the central object is an `AnalogCircuit`.
+An instance of `AnalogCircuit` can be evolved for duration `t` according to an `AnalogGate`.
 The `AnalogGate` contains a hamiltonian `H` which is an instance of `Operator`.
 As an example, we will perform a Rabi flopping experiment, where one qubit evolves under a driving field.
 The (time-independent) Hamiltonian, which governs the quantum evolution, is,
@@ -68,6 +68,3 @@ graph TD;
 ```
 
 ///
-
-
-
