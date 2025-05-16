@@ -1,4 +1,8 @@
-# ![Open Quantum Design](https://raw.githubusercontent.com/OpenQuantumDesign/oqd-compiler-infrastructure/main/docs/img/oqd-logo-text.png)
+# 
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/OpenQuantumDesign/oqd-compiler-infrastructure/main/docs/img/oqd-logo-black.png" alt="Open Quantum Design Logo" style="max-height: 200px;">
+</p>
 
 <h2 align="center">
     Open Quantum Design: Analog Emulator
