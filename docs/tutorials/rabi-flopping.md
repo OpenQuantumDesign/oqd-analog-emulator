@@ -75,4 +75,3 @@ The [`Task`][core.backend.task.Task] object can be directly simulated by the `ru
     backend = QutipBackend()
     results = backend.run(task = task)
     ```
-
