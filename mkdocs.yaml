@@ -26,8 +26,8 @@ nav:
 
 theme:
   name: material
-  logo: img/oqd-logo.png
-  favicon: img/oqd-logo.png
+  logo: img/oqd-icon.png
+  favicon: img/oqd-icon.png
 
   palette:
     - media: "(prefers-color-scheme: light)"
