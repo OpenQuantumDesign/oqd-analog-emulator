@@ -1,7 +1,7 @@
 # 
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/OpenQuantumDesign/oqd-compiler-infrastructure/main/docs/img/oqd-logo-black.png" alt="Open Quantum Design Logo" width="300">
+  <img src="https://raw.githubusercontent.com/OpenQuantumDesign/oqd-analog-emulator/main/docs/img/oqd-logo-black.png" alt="Open Quantum Design Logo" width="300">
 </p>
 
 <h2 align="center">
