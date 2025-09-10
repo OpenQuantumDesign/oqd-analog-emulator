@@ -24,7 +24,7 @@ from oqd_compiler_infrastructure import VisitableBaseModel
 ########################################################################################
 
 from oqd_core.interface.math import MathExpr
-from oqd_core.backend.metric import EntanglementEntropyReyni, EntanglementEntropyVN
+from oqd_core.backend.metric import EntanglementEntropyRenyi, EntanglementEntropyVN
 
 ########################################################################################
 
@@ -53,7 +53,7 @@ class TaskArgsQutip(VisitableBaseModel):
     fock_cutoff: int = 4
     dt: float = 0.1
     metrics: Dict[
-        str, Union[EntanglementEntropyReyni, EntanglementEntropyVN, QutipExpectation]
+        str, Union[EntanglementEntropyRenyi, EntanglementEntropyVN, QutipExpectation]
     ] = {}
 
 
