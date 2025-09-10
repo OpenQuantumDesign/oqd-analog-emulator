@@ -35,6 +35,7 @@ dependencies = [
   "setuptools",
   "oqd-compiler-infrastructure@git+https://github.com/openquantumdesign/oqd-compiler-infrastructure",
   "oqd-core@git+https://github.com/openquantumdesign/oqd-core",
+  "matplotlib>=3.10.6",
 ]
 
 [project.optional-dependencies]
@@ -43,21 +44,16 @@ docs = [
   "mkdocstrings",
   "mkdocs-material",
   "mkdocstrings-python",
-  "mdx_truly_sane_lists"
+  "mdx_truly_sane_lists",
 ]
-test = [
-  "pytest"
-]
+test = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["oqd_analog_emulator*"]
 
 [dependency-groups]
-dev = [
-    "pre-commit>=4.1.0",
-    "ruff>=0.9.7",
-]
+dev = ["ipympl>=0.9.7", "jupyter>=1.1.1", "pre-commit>=4.1.0", "ruff>=0.9.7"]
 
 
 [project.urls]

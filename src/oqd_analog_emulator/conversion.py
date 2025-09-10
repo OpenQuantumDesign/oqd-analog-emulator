@@ -17,13 +17,8 @@ import itertools
 import time
 import qutip as qt
 
-from oqd_compiler_infrastructure import ConversionRule, RewriteRule, Chain
+from oqd_compiler_infrastructure import ConversionRule, RewriteRule
 from oqd_core.backend.task import TaskResultAnalog
-from oqd_core.compiler.math.passes import (
-    evaluate_math_expr,
-    simplify_math_expr,
-    print_math_expr,
-)
 
 ########################################################################################
 
@@ -55,6 +50,17 @@ def entanglement_entropy_vn(t, psi, qreg, qmode, n_qreg, n_qmode):
     return qt.entropy_vn(rho)
 
 
+def entanglement_entropy_renyi(alpha, t, psi, qreg, qmode, n_qreg, n_qmode):
+    rho = qt.ptrace(
+        psi,
+        qreg + [n_qreg + m for m in qmode],
+    )
+
+    p = rho.eigenenergies()
+
+    return 1 / (1 - alpha) * np.log((p**alpha).sum())
+
+
 class QutipMetricConversion(ConversionRule):
     """
     This takes in a a dictionary containing Metrics, which get converted to lambda functions for QuTip
@@ -75,21 +81,16 @@ class QutipMetricConversion(ConversionRule):
         self._n_qmode = n_qmode
 
     def map_QutipExpectation(self, model, operands):
-        assert len(model.operator) > 0, "List of operator terms must be non-empty"
-
-        op_exp = None
-        for idx, operator in enumerate(model.operator):
-            coefficient = evaluate_math_expr(operator[1])
-            if idx == 0:
-                op_exp = coefficient * operator[0]
-            else:
-                op_exp + coefficient * operator[0]
-
-        return lambda t, psi: qt.expect(op_exp, psi)
+        return lambda t, psi: qt.expect(model.operator(t), psi)
 
     def map_EntanglementEntropyVN(self, model, operands):
         return lambda t, psi: entanglement_entropy_vn(
             t, psi, model.qreg, model.qmode, self._n_qreg, self._n_qmode
+        )
+
+    def map_EntanglementEntropyRenyi(self, model, operands):
+        return lambda t, psi: entanglement_entropy_renyi(
+            model.alpha, t, psi, model.qreg, model.qmode, self._n_qreg, self._n_qmode
         )
 
 
@@ -154,18 +155,14 @@ class QutipExperimentVM(RewriteRule):
         )
 
     def map_QutipOperation(self, model):
-        duration = model.duration
-        tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
+        tspan = np.arange(0, model.duration, self._dt)
 
-        qutip_hamiltonian = []
-        for op, coeff in model.hamiltonian:
-            qutip_hamiltonian.append(
-                [op, Chain(simplify_math_expr, print_math_expr)(coeff)]
-            )
+        if tspan[-1] != model.duration:
+            tspan = np.append(tspan, model.duration)
 
         start_runtime = time.time()
         result_qobj = qt.sesolve(
-            qutip_hamiltonian,
+            model.hamiltonian,
             self.current_state,
             tspan,
             e_ops=self._qt_metrics,
@@ -232,37 +229,104 @@ class QutipBackendCompiler(ConversionRule):
     def map_AnalogGate(self, model, operands):
         return operands["hamiltonian"]
 
-    def map_OperatorAdd(self, model, operands):
-        op = operands["op1"]
-        op.append(operands["op2"][0])
-        return op
-
-    def map_OperatorScalarMul(self, model, operands):
-        return [(operands["op"], model.expr)]
-
     def map_PauliI(self, model, operands):
-        return qt.qeye(2)
+        op = qt.qeye(2)
+        return qt.QobjEvo(op)
 
     def map_PauliX(self, model, operands):
-        return qt.sigmax()
+        op = qt.sigmax()
+        return qt.QobjEvo(op)
 
     def map_PauliY(self, model, operands):
-        return qt.sigmay()
+        op = qt.sigmay()
+        return qt.QobjEvo(op)
 
     def map_PauliZ(self, model, operands):
-        return qt.sigmaz()
+        op = qt.sigmaz()
+        return qt.QobjEvo(op)
 
     def map_Identity(self, model, operands):
-        return qt.qeye(self._fock_cutoff)
-
-    def map_Creation(self, model, operands):
-        return qt.create(self._fock_cutoff)
+        op = qt.qeye(self._fock_cutoff)
+        return qt.QobjEvo(op)
 
     def map_Annihilation(self, model, operands):
-        return qt.destroy(self._fock_cutoff)
+        op = qt.destroy(self._fock_cutoff)
+        return qt.QobjEvo(op)
+
+    def map_Creation(self, model, operands):
+        op = qt.create(self._fock_cutoff)
+        return qt.QobjEvo(op)
+
+    def map_OperatorAdd(self, model, operands):
+        return operands["op1"] + operands["op2"]
+
+    def map_OperatorScalarMul(self, model, operands):
+        return qt.QobjEvo(lambda t: operands["expr"](t) * operands["op"](t))
 
     def map_OperatorMul(self, model, operands):
         return operands["op1"] * operands["op2"]
 
     def map_OperatorKron(self, model, operands):
         return qt.tensor(operands["op1"], operands["op2"])
+
+    def map_MathNum(self, model, operands):
+        return lambda t: model.value
+
+    def map_MathImag(self, model, operands):
+        return lambda t: 1j
+
+    def map_MathVar(self, model, operands):
+        if model.name == "t":
+            return lambda t: t
+
+        raise ValueError(
+            f"Unsupported variable {model.name}, only variable t is supported"
+        )
+
+    def map_MathFunc(self, model, operands):
+        if model.func in [
+            "abs",
+            "sin",
+            "cos",
+            "tan",
+            "exp",
+            "log",
+            "sinh",
+            "cosh",
+            "tanh",
+            "atan",
+            "acos",
+            "asin",
+            "atanh",
+            "asinh",
+            "acosh",
+            "conj",
+            "real",
+            "imag",
+            "atan2",
+        ]:
+            if isinstance(operands["expr"], list):
+                return lambda t: getattr(np, model.func)(
+                    *[o(t) for o in operands["expr"]]
+                )
+            return lambda t: getattr(np, model.func)(operands["expr"](t))
+
+        if model.func == "heaviside":
+            return lambda t: np.heaviside(operands["expr"](t), 1)
+
+        raise ValueError(f"Unsupported function {model.func}")
+
+    def map_MathAdd(self, model, operands):
+        return lambda t: operands["expr1"](t) + operands["expr2"](t)
+
+    def map_MathSub(self, model, operands):
+        return lambda t: operands["expr1"](t) - operands["expr2"](t)
+
+    def map_MathMul(self, model, operands):
+        return lambda t: operands["expr1"](t) * operands["expr2"](t)
+
+    def map_MathDiv(self, model, operands):
+        return lambda t: operands["expr1"](t) / operands["expr2"](t)
+
+    def map_MathPow(self, model, operands):
+        return lambda t: operands["expr1"](t) ** operands["expr2"](t)

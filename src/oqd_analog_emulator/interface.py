@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Dict, Literal, Tuple, Union
+from typing import Dict, Literal, Union
 
 import qutip as qt
 
@@ -23,7 +23,6 @@ from oqd_compiler_infrastructure import VisitableBaseModel
 
 ########################################################################################
 
-from oqd_core.interface.math import MathExpr
 from oqd_core.backend.metric import EntanglementEntropyRenyi, EntanglementEntropyVN
 
 ########################################################################################
@@ -33,7 +32,7 @@ __all__ = ["QutipOperation", "QutipExperiment", "TaskArgsQutip", "QutipExpectati
 
 class QutipExpectation(VisitableBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    operator: List[Tuple[qt.Qobj, MathExpr]]
+    operator: qt.QobjEvo
 
 
 class TaskArgsQutip(VisitableBaseModel):
@@ -67,7 +66,7 @@ class QutipOperation(VisitableBaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    hamiltonian: List[Tuple[qt.Qobj, MathExpr]]
+    hamiltonian: qt.QobjEvo
     duration: float
 
 
