@@ -12,11 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oqd_core.backend.base import BackendBase
-from oqd_core.backend.task import Task
+from typing import Annotated, Dict, List, Union
+from oqd_compiler_infrastructure import Post, Pre, TypeReflectBaseModel
+from oqd_core.interface.analog import AnalogCircuit, OperatorSubTypes
+from oqd_core.backend import BackendBase
 
-from oqd_analog_emulator.passes import (
-    run_qutip_experiment,
+from pydantic import Discriminator, NonNegativeInt
+
+from oqd_analog_emulator.backend.qutip.conversion import (
+    QutipExperimentVM,
+    QutipMetricConversion,
+)
+from oqd_analog_emulator.backend.qutip.passes import (
     compiler_analog_args_to_qutipIR,
     compiler_analog_circuit_to_qutipIR,
 )
@@ -26,14 +33,55 @@ from oqd_core.compiler.analog.passes.canonicalize import (
 )
 from oqd_core.compiler.analog.passes.assign import (
     assign_analog_circuit_dim,
-    verify_analog_args_dim,
 )
 
 ########################################################################################
 
 __all__ = [
     "QutipBackend",
+    "Expectation",
+    "EntanglementEntropyVN",
+    "EntanglementEntropyRenyi",
 ]
+
+########################################################################################
+
+
+class Metric(TypeReflectBaseModel):
+    pass
+
+
+class Expectation(Metric):
+    operator: OperatorSubTypes
+
+
+class EntanglementEntropyVN(Metric):
+    qreg: List[NonNegativeInt] = []
+    qmode: List[NonNegativeInt] = []
+
+
+class EntanglementEntropyRenyi(Metric):
+    alpha: NonNegativeInt = 1
+    qreg: List[NonNegativeInt] = []
+    qmode: List[NonNegativeInt] = []
+
+
+MetricSubTypes = Annotated[
+    Union[
+        Expectation,
+        EntanglementEntropyVN,
+        EntanglementEntropyRenyi,
+    ],
+    Discriminator(discriminator="class_"),
+]
+
+
+class QutipBackendArgs(TypeReflectBaseModel):
+    n_shots: Union[int, None] = 10
+    fock_cutoff: int = 4
+    dt: float = 0.1
+    metrics: Dict[str, MetricSubTypes] = {}
+
 
 ########################################################################################
 
@@ -43,7 +91,7 @@ class QutipBackend(BackendBase):
     Class representing the Qutip backend
     """
 
-    def compile(self, task: Task):
+    def compile(self, program: AnalogCircuit, args: QutipBackendArgs):
         """
         Method for compiling program of task to a [`QutipExperiment`][oqd_analog_emulator.interface.QutipExperiment] and converting
         args of task to [`TaskArgsAnalog`][oqd_core.backend.task.TaskArgsAnalog].
@@ -57,27 +105,27 @@ class QutipBackend(BackendBase):
 
         """
         # pass to canonicaliza the operators in the AnalogCircuit
-        canonicalized_circuit = analog_operator_canonicalization(task.program)
+        canonicalized_circuit = analog_operator_canonicalization(program)
 
         # This just canonicalizes the operators inside the TaskArgsAnalog
         # i.e. operators for Expectation
-        canonicalized_args = analog_operator_canonicalization(task.args)
+        canonicalized_args = analog_operator_canonicalization(args)
 
         # another pass which assigns the n_qreg and n_qmode of the
         # AnalogCircuit IR
         assigned_circuit = assign_analog_circuit_dim(canonicalized_circuit)
 
-        # This just verifies that the operators in the args have the same
-        # dimension as the operators in the AnalogCircuit
-        verify_analog_args_dim(
-            canonicalized_args,
-            n_qreg=assigned_circuit.n_qreg,
-            n_qmode=assigned_circuit.n_qmode,
-        )
+        # # This just verifies that the operators in the args have the same
+        # # dimension as the operators in the AnalogCircuit
+        # verify_analog_args_dim(
+        #     canonicalized_args,
+        #     n_qreg=assigned_circuit.n_qreg,
+        #     n_qmode=assigned_circuit.n_qmode,
+        # )
 
         # another pass which compiles AnalogCircuit to a QutipExperiment
         converted_circuit = compiler_analog_circuit_to_qutipIR(
-            assigned_circuit, fock_cutoff=task.args.fock_cutoff
+            assigned_circuit, fock_cutoff=args.fock_cutoff
         )
 
         # This just converts the args so that the operators of the args are
@@ -89,21 +137,16 @@ class QutipBackend(BackendBase):
             converted_args,
         )
 
-    def run(
-        self,
-        task: Task,
-    ):
+    def run(self, program: AnalogCircuit, args: QutipBackendArgs):
         """
         Method to simulate an experiment using the QuTip backend
 
         Args:
-            task (Optional[Task]): Run experiment from a [`Task`][oqd_core.backend.task.Task] object
+            task (Task): Run experiment from a [`Task`][oqd_core.backend.task.Task] object
 
         Returns:
             TaskResultAnalog object containing the simulation results.
 
-        Note:
-            only one of task or experiment must be provided.
         """
 
         # if experiment is None and args is not None:
@@ -116,6 +159,21 @@ class QutipBackend(BackendBase):
         # if experiment is None:
         #     experiment, args = self.compile(task=task)
 
-        experiment, args = self.compile(task=task)
+        experiment, args = self.compile(program=program, args=args)
 
-        return run_qutip_experiment(model=experiment, args=args)
+        n_qreg = experiment.n_qreg
+        n_qmode = experiment.n_qmode
+        metrics = Post(QutipMetricConversion(n_qreg=n_qreg, n_qmode=n_qmode))(
+            args["metrics"]
+        )
+        interpreter = Pre(
+            QutipExperimentVM(
+                qt_metrics=metrics,
+                n_shots=args["n_shots"],
+                fock_cutoff=args["fock_cutoff"],
+                dt=args["dt"],
+            )
+        )
+        interpreter(experiment)
+
+        return interpreter.children[0].results

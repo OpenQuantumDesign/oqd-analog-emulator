@@ -12,51 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Literal, Union
+from typing import Annotated, Union
 
 import qutip as qt
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Discriminator
 from pydantic.types import NonNegativeInt
 
-from oqd_compiler_infrastructure import VisitableBaseModel
+from oqd_compiler_infrastructure import TypeReflectBaseModel
+
 
 ########################################################################################
 
-from oqd_core.backend.metric import EntanglementEntropyRenyi, EntanglementEntropyVN
-
-########################################################################################
-
-__all__ = ["QutipOperation", "QutipExperiment", "TaskArgsQutip", "QutipExpectation"]
+__all__ = ["QutipOperation", "QutipExperiment", "QutipExpectation"]
 
 
-class QutipExpectation(VisitableBaseModel):
+class QutipExpectation(TypeReflectBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     operator: qt.QobjEvo
 
 
-class TaskArgsQutip(VisitableBaseModel):
-    """
-    Class representing args for QuTip
-
-    Attributes:
-        layer (str): the layer of the experiment (analog, atomic)
-        n_shots (Union[int, None]): number of shots requested
-        fock_cutof (int): fock_cutoff for QuTip simulation
-        dt (float): timesteps for discrete time
-        metrics (dict): metrics which should be computed for the experiment. This does not require any Measure instruction in the analog layer.
-    """
-
-    layer: Literal["analog"] = "analog"
-    n_shots: Union[int, None] = 10
-    fock_cutoff: int = 4
-    dt: float = 0.1
-    metrics: Dict[
-        str, Union[EntanglementEntropyRenyi, EntanglementEntropyVN, QutipExpectation]
-    ] = {}
-
-
-class QutipOperation(VisitableBaseModel):
+class QutipOperation(TypeReflectBaseModel):
     """
     Class representing a quantum operation in QuTip
 
@@ -70,11 +46,15 @@ class QutipOperation(VisitableBaseModel):
     duration: float
 
 
-class QutipMeasurement(VisitableBaseModel):
+class QutipMeasurement(TypeReflectBaseModel):
     pass
 
 
-class QutipExperiment(VisitableBaseModel):
+class QutipInitialization(TypeReflectBaseModel):
+    pass
+
+
+class QutipExperiment(TypeReflectBaseModel):
     """
     Class representing a quantum experiment in qutip
 
@@ -82,9 +62,14 @@ class QutipExperiment(VisitableBaseModel):
         instructions (List[QutipOperation]): List of quantum operations to apply
         n_qreg (NonNegativeInt): Number of qubit quantum registers
         n_qmode (NonNegativeInt): Number of modal quantum registers
-        args (TaskArgsQutip): Arguments for the experiment
+        args (TaskArgsQutip): Arguments for the experimentN
     """
 
-    instructions: list[Union[QutipOperation, QutipMeasurement]]
+    instructions: list[
+        Annotated[
+            Union[QutipOperation, QutipMeasurement, QutipInitialization],
+            Discriminator(discriminator="class_"),
+        ]
+    ]
     n_qreg: NonNegativeInt
     n_qmode: NonNegativeInt

@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .backend.qutip.base import (
+from .base import (
     QutipBackend,
-    QutipBackendArgs,
     EntanglementEntropyRenyi,
     EntanglementEntropyVN,
     Expectation,
+    QutipBackendArgs,
 )
+
+from . import base, conversion, interface, passes
 
 ########################################################################################
 
@@ -28,4 +30,8 @@ __all__ = [
     "EntanglementEntropyRenyi",
     "EntanglementEntropyVN",
     "Expectation",
+    "base",
+    "conversion",
+    "interface",
+    "passes",
 ]

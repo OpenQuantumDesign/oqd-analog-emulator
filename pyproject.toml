@@ -36,6 +36,7 @@ dependencies = [
   "matplotlib>=3.10.6",
   "oqd-core",
   "oqd-compiler-infrastructure",
+  "oqd-dataschema",
 ]
 
 [project.optional-dependencies]
@@ -53,8 +54,9 @@ where = ["src"]
 include = ["oqd_analog_emulator*"]
 
 [tool.uv.sources]
-oqd-core = { git = "https://github.com/openquantumdesign/oqd-core" }
+oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", rev = "v0.2dev" }
 oqd-compiler-infrastructure = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" }
+oqd-dataschema = { git = "https://github.com/openquantumdesign/oqd-dataschema", rev = "refactor_group_registry" }
 
 [dependency-groups]
 dev = ["ipympl>=0.9.7", "jupyter>=1.1.1", "pre-commit>=4.1.0", "ruff>=0.9.7"]
