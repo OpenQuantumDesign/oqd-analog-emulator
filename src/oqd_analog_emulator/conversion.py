@@ -114,6 +114,8 @@ class QutipExperimentVM(RewriteRule):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
         self._dt = dt
+        self._state_trajectory: list[list] = []
+        self._measurements: np.ndarray | None = None
 
     def map_QutipExperiment(self, model):
         dims = model.n_qreg * [2] + model.n_qmode * [self._fock_cutoff]
@@ -122,9 +124,9 @@ class QutipExperimentVM(RewriteRule):
         self.current_state = qt.tensor([qt.basis(d, 0) for d in dims])
 
         self.results.times.append(0.0)
-        self.results.state = list(
-            self.current_state.full().squeeze(),
-        )
+        initial_state = list(self.current_state.full().squeeze())
+        self.results.state = initial_state
+        self._state_trajectory.append(initial_state)
         self.results.metrics.update(
             {
                 key: [self._qt_metrics[key](0.0, self.current_state)]
@@ -144,6 +146,7 @@ class QutipExperimentVM(RewriteRule):
             ]
             bases = list(itertools.product(*opts))
             shots = np.array([bases[ind] for ind in inds])
+            self._measurements = shots[:, : self.n_qreg].astype(np.int64)
             bitstrings = ["".join(map(str, shot)) for shot in shots]
             self.results.counts = {
                 bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
@@ -177,6 +180,10 @@ class QutipExperimentVM(RewriteRule):
 
         for idx, key in enumerate(self.results.metrics.keys()):
             self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
+
+        if result_qobj.states is not None:
+            for st in result_qobj.states[1:]:
+                self._state_trajectory.append(list(st.full().squeeze()))
 
         self.current_state = result_qobj.final_state
 

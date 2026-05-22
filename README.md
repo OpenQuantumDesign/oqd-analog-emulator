@@ -59,6 +59,7 @@ from oqd_core.interface.analog.operator import *
 from oqd_core.interface.analog.operation import *
 from oqd_core.backend.metric import *
 from oqd_core.backend.task import Task, TaskArgsAnalog
+from oqd_analog_emulator.datastore import metric_labels_from_dataset
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
 X = PauliX()
@@ -77,9 +78,15 @@ args = TaskArgsAnalog(
 task = Task(program=circuit, args=args)
 
 backend = QutipBackend()
-results = backend.run(task=task)
+datastore = backend.run(task=task)
+datastore.model_dump_hdf5("rabi_run.h5")
 
-plt.plot(results.times, results.metrics["Z"], label=f"$\\langle Z \\rangle$")
+sim = datastore.groups["emulation"]
+times = sim.times.data
+z_idx = metric_labels_from_dataset(sim.metrics).index("Z")
+z = sim.metrics.data[:, z_idx]
+
+plt.plot(times, z, label=f"$\\langle Z \\rangle$")
 ```
 
 ### Where in the stack
