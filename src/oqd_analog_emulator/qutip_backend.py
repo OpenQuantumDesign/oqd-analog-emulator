@@ -100,7 +100,8 @@ class QutipBackend(BackendBase):
             task (Optional[Task]): Run experiment from a [`Task`][oqd_core.backend.task.Task] object
 
         Returns:
-            TaskResultAnalog object containing the simulation results.
+            [`Datastore`][oqd_dataschema.datastore.Datastore] with simulation results
+            under the ``emulation`` group.
 
         Note:
             only one of task or experiment must be provided.

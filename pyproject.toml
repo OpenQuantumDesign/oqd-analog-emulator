@@ -35,6 +35,7 @@ dependencies = [
   "setuptools",
   "oqd-compiler-infrastructure@git+https://github.com/openquantumdesign/oqd-compiler-infrastructure",
   "oqd-core@git+https://github.com/openquantumdesign/oqd-core",
+  "oqd-dataschema@git+https://github.com/OpenQuantumDesign/oqd-dataschema",
 ]
 
 [project.optional-dependencies]

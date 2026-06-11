@@ -17,5 +17,5 @@ After compilation, the time dynamical evolution is emulated using the Qutip impl
     User_Input --> OpenQSIM: The user inputs are put in the OpenQSIM AST's Task object
     OpenQSIM --> OpenQSIM(canonicalized): RewriteRule (Canonicalization of Operators)
     OpenQSIM(canonicalized) --> QutipExperiment: compile the program of Task to QutipExperiment. And also convert the analog
-    QutipExperiment --> TaskResultAnalog: Run the experiment using the QutipExperimentVM Virtual Machine.
+    QutipExperiment --> Datastore: Run the experiment using the QutipExperimentVM Virtual Machine.
 ```

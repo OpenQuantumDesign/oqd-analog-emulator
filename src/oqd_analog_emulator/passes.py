@@ -17,6 +17,7 @@ from oqd_analog_emulator.conversion import (
     QutipExperimentVM,
     QutipMetricConversion,
 )
+from oqd_analog_emulator.datastore import vm_to_datastore
 
 from oqd_compiler_infrastructure import Post, Pre
 
@@ -63,27 +64,26 @@ def compiler_analog_args_to_qutipIR(model):
 
 def run_qutip_experiment(model: QutipExperimentVM, args):
     """
-    This takes in a [`QutipExperiment`][oqd_analog_emulator.interface.QutipExperiment] and produces a TaskResultAnalog object
+    Run a [`QutipExperiment`][oqd_analog_emulator.interface.QutipExperiment] and return a dataschema [`Datastore`][oqd_dataschema.datastore.Datastore].
 
     Args:
         model (QutipExperiment):
-        args: (Qutip
+        args: Compiled QuTiP task arguments.
 
     Returns:
-        (TaskResultAnalog): Contains results of the simulation
+        Datastore containing an [`AnalogEmulatorDataGroup`][oqd_dataschema.groups.analog_emulator.AnalogEmulatorDataGroup] under the ``emulation`` key.
 
     """
     n_qreg = model.n_qreg
     n_qmode = model.n_qmode
     metrics = Post(QutipMetricConversion(n_qreg=n_qreg, n_qmode=n_qmode))(args.metrics)
-    interpreter = Pre(
-        QutipExperimentVM(
-            qt_metrics=metrics,
-            n_shots=args.n_shots,
-            fock_cutoff=args.fock_cutoff,
-            dt=args.dt,
-        )
+    vm = QutipExperimentVM(
+        qt_metrics=metrics,
+        n_shots=args.n_shots,
+        fock_cutoff=args.fock_cutoff,
+        dt=args.dt,
     )
+    interpreter = Pre(vm)
     interpreter(model=model)
 
-    return interpreter.children[0].results
+    return vm_to_datastore(vm, args)

@@ -77,9 +77,15 @@ args = TaskArgsAnalog(
 task = Task(program=circuit, args=args)
 
 backend = QutipBackend()
-results = backend.run(task=task)
+datastore = backend.run(task=task)
+datastore.model_dump_hdf5("rabi_run.h5")
 
-plt.plot(results.times, results.metrics["Z"], label=f"$\\langle Z \\rangle$")
+sim = datastore.groups["emulation"]
+times = sim.times.data
+z_idx = sim.metrics.attrs["metric_labels"].split(",").index("Z")
+z = sim.metrics.data[:, z_idx]
+
+plt.plot(times, z, label=f"$\\langle Z \\rangle$")
 ```
 
 ### Where in the stack

@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import itertools
 import time
+
+import numpy as np
 import qutip as qt
 
 from oqd_compiler_infrastructure import ConversionRule, RewriteRule, Chain
-from oqd_core.backend.task import TaskResultAnalog
 from oqd_core.compiler.math.passes import (
     evaluate_math_expr,
     simplify_math_expr,
@@ -43,6 +43,12 @@ __all__ = [
     "QutipBackendCompiler",
     "QutipExperimentVM",
 ]
+
+
+def _qobj_to_state_vector(state: qt.Qobj) -> np.ndarray:
+    """Extract a 1D complex128 state vector from a QuTiP Qobj."""
+    return np.asarray(state.full(), dtype=np.complex128).squeeze()
+
 
 ########################################################################################
 
@@ -95,25 +101,31 @@ class QutipMetricConversion(ConversionRule):
 
 class QutipExperimentVM(RewriteRule):
     """
-    This is a Virtual Machine which takes in a QutipExperiment object, simulates the experiment and then produces the results
+    Virtual machine that simulates a [`QutipExperiment`][oqd_analog_emulator.interface.QutipExperiment]
+    and collects run data as plain numpy-friendly attributes for datastore export.
 
-    Args:
-        model (QutipExperiment): This is the compiled  [`QutipExperiment`][oqd_analog_emulator.qutip_backend.QutipExperiment] object
-
-    Returns:
-        task (TaskResultAnalog):
-
-    Note:
-        n_qreg and n_qmode are given as compiler parameters
+    Attributes populated during execution:
+        times: simulation time points
+        metric_labels: ordered metric names
+        metrics: expectation time-series per metric
+        state_trajectory: state vectors at each time step
+        measurements: sampled qubit outcomes after a measure instruction
+        runtime: total solver wall time in seconds
     """
 
     def __init__(self, qt_metrics, n_shots, fock_cutoff, dt):
         super().__init__()
-        self.results = TaskResultAnalog(runtime=0)
         self._qt_metrics = qt_metrics
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
         self._dt = dt
+
+        self.metric_labels: list[str] = list(qt_metrics.keys())
+        self.times: list[float] = []
+        self.metrics: dict[str, list[float]] = {key: [] for key in self.metric_labels}
+        self.state_trajectory: list[np.ndarray] = []
+        self.measurements: np.ndarray | None = None
+        self.runtime: float = 0.0
 
     def map_QutipExperiment(self, model):
         dims = model.n_qreg * [2] + model.n_qmode * [self._fock_cutoff]
@@ -121,37 +133,21 @@ class QutipExperimentVM(RewriteRule):
         self.n_qmode = model.n_qmode
         self.current_state = qt.tensor([qt.basis(d, 0) for d in dims])
 
-        self.results.times.append(0.0)
-        self.results.state = list(
-            self.current_state.full().squeeze(),
-        )
-        self.results.metrics.update(
-            {
-                key: [self._qt_metrics[key](0.0, self.current_state)]
-                for key in self._qt_metrics.keys()
-            }
-        )
+        self.times.append(0.0)
+        self.state_trajectory.append(_qobj_to_state_vector(self.current_state))
+        for key in self.metric_labels:
+            self.metrics[key].append(self._qt_metrics[key](0.0, self.current_state))
 
     def map_QutipMeasurement(self, model):
-        if self._n_shots is None:
-            self.results.counts = {}
-        else:
+        if self._n_shots is not None:
             probs = np.power(np.abs(self.current_state.full()), 2).squeeze()
-            n_shots = self._n_shots
-            inds = np.random.choice(len(probs), size=n_shots, p=probs)
+            inds = np.random.choice(len(probs), size=self._n_shots, p=probs)
             opts = self.n_qreg * [[0, 1]] + self.n_qmode * [
                 list(range(self._fock_cutoff))
             ]
             bases = list(itertools.product(*opts))
             shots = np.array([bases[ind] for ind in inds])
-            bitstrings = ["".join(map(str, shot)) for shot in shots]
-            self.results.counts = {
-                bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
-            }
-
-        self.results.state = list(
-            self.current_state.full().squeeze(),
-        )
+            self.measurements = shots[:, : self.n_qreg].astype(np.int64)
 
     def map_QutipOperation(self, model):
         duration = model.duration
@@ -171,18 +167,18 @@ class QutipExperimentVM(RewriteRule):
             e_ops=self._qt_metrics,
             options={"store_states": True},
         )
-        self.results.runtime = time.time() - start_runtime + self.results.runtime
+        self.runtime += time.time() - start_runtime
 
-        self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
+        self.times.extend([t + self.times[-1] for t in tspan][1:])
 
-        for idx, key in enumerate(self.results.metrics.keys()):
-            self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
+        for idx, key in enumerate(self.metric_labels):
+            self.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
+
+        if result_qobj.states is not None:
+            for st in result_qobj.states[1:]:
+                self.state_trajectory.append(_qobj_to_state_vector(st))
 
         self.current_state = result_qobj.final_state
-
-        self.results.state = list(
-            result_qobj.final_state.full().squeeze(),
-        )
 
 
 class QutipBackendCompiler(ConversionRule):
