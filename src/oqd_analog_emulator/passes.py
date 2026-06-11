@@ -17,7 +17,7 @@ from oqd_analog_emulator.conversion import (
     QutipExperimentVM,
     QutipMetricConversion,
 )
-from oqd_analog_emulator.datastore import task_result_to_datastore
+from oqd_analog_emulator.datastore import vm_to_datastore
 
 from oqd_compiler_infrastructure import Post, Pre
 
@@ -86,9 +86,4 @@ def run_qutip_experiment(model: QutipExperimentVM, args):
     interpreter = Pre(vm)
     interpreter(model=model)
 
-    return task_result_to_datastore(
-        vm.results,
-        args,
-        state_trajectory=vm._state_trajectory,
-        measurements=vm._measurements,
-    )
+    return vm_to_datastore(vm, args)

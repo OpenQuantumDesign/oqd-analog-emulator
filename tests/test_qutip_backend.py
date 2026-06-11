@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import pathlib
-
 import pytest
 
 import numpy as np
@@ -35,10 +32,7 @@ from oqd_core.interface.analog.operator import (
 from oqd_core.interface.analog.operation import AnalogCircuit, AnalogGate
 from oqd_core.backend.metric import Expectation
 from oqd_core.backend.task import Task, TaskArgsAnalog
-from oqd_analog_emulator.datastore import (
-    EMULATION_GROUP_KEY,
-    metric_labels_from_dataset,
-)
+from oqd_analog_emulator.datastore import EMULATION_GROUP_KEY
 from oqd_analog_emulator.qutip_backend import QutipBackend
 from oqd_dataschema import Datastore
 
@@ -61,7 +55,7 @@ def emulation_group(datastore: Datastore):
 
 def metric_series(datastore: Datastore, label: str) -> np.ndarray:
     sim = emulation_group(datastore)
-    labels = metric_labels_from_dataset(sim.metrics)
+    labels = sim.metrics.attrs["metric_labels"].split(",")
     idx = labels.index(label)
     return sim.metrics.data[:, idx]
 
@@ -499,7 +493,7 @@ def test_datastore_hdf5_roundtrip(one_qubit_rabi_flopping_protocol, tmp_path):
     assert sim.attrs["backend"] == "qutip"
     assert sim.attrs["dt"] == args.dt
     assert sim.attrs["fock_cutoff"] == args.fock_cutoff
-    assert metric_labels_from_dataset(sim.metrics) == ["Z"]
+    assert sim.metrics.attrs["metric_labels"] == "Z"
     assert len(sim.times.data) == len(metric_series(reloaded, "Z"))
     assert abs(metric_series(reloaded, "Z")[-1] - 0) <= 0.001
 

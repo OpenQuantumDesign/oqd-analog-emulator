@@ -14,85 +14,61 @@
 
 from __future__ import annotations
 
-import json
 from importlib.metadata import version
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from oqd_core.backend.task import TaskArgsAnalog, TaskResultAnalog
 from oqd_dataschema import AnalogEmulatorDataGroup, Datastore, Dataset
+
+if TYPE_CHECKING:
+    from oqd_analog_emulator.conversion import QutipExperimentVM
+    from oqd_analog_emulator.interface import TaskArgsQutip
 
 ########################################################################################
 
 __all__ = [
     "EMULATION_GROUP_KEY",
-    "metric_labels_from_dataset",
-    "task_result_to_datastore",
+    "METRIC_LABELS_ATTR",
+    "vm_to_datastore",
 ]
 
 EMULATION_GROUP_KEY = "emulation"
+METRIC_LABELS_ATTR = "metric_labels"
 
 ########################################################################################
 
 
-def _complex_list_to_array(values: List) -> np.ndarray:
-    """Convert a list of ComplexFloat or complex values to a 1D complex128 array."""
-    out = np.empty(len(values), dtype=np.complex128)
-    for i, value in enumerate(values):
-        if hasattr(value, "real") and hasattr(value, "imag"):
-            out[i] = complex(value.real, value.imag)
-        else:
-            out[i] = complex(value)
-    return out
-
-
-def metric_labels_from_dataset(metrics_dataset: Dataset) -> List[str]:
-    """Decode metric axis labels stored in a metrics dataset's attrs."""
-    raw = metrics_dataset.attrs.get("metric_labels", "[]")
-    return json.loads(raw)
-
-
-def task_result_to_datastore(
-    result: TaskResultAnalog,
-    args: TaskArgsAnalog,
-    *,
-    state_trajectory: Optional[List[List]] = None,
-    measurements: Optional[np.ndarray] = None,
-    backend: str = "qutip",
-) -> Datastore:
+def vm_to_datastore(vm: QutipExperimentVM, args: TaskArgsQutip) -> Datastore:
     """
-    Build an [`Datastore`][oqd_dataschema.datastore.Datastore] from analog emulator output.
+    Build a [`Datastore`][oqd_dataschema.datastore.Datastore] from VM run data.
 
-    Args:
-        result: Raw simulation results from the QuTiP virtual machine.
-        args: Task arguments used for the run (metadata source).
-        state_trajectory: State vectors at each time step, if collected.
-        measurements: Sampled qubit outcomes of shape ``(n_shots, n_qubits)``.
-        backend: Backend identifier stored in group attrs.
+    Expects ``vm`` to hold plain numpy-friendly collections populated during
+    simulation (no ``TaskResultAnalog`` intermediate).
     """
-    times = np.asarray(result.times, dtype=np.float64)
-    metric_labels = list(result.metrics.keys())
+    times = np.asarray(vm.times, dtype=np.float64)
 
     metrics_dataset = None
-    if metric_labels:
+    if vm.metric_labels:
         metrics_data = np.column_stack(
-            [np.asarray(result.metrics[label], dtype=np.float64) for label in metric_labels]
+            [
+                np.asarray(vm.metrics[label], dtype=np.float64)
+                for label in vm.metric_labels
+            ]
         )
         metrics_dataset = Dataset(
             data=metrics_data,
-            attrs={"metric_labels": json.dumps(metric_labels)},
+            attrs={METRIC_LABELS_ATTR: ",".join(vm.metric_labels)},
         )
 
     state_dataset = None
-    if state_trajectory is not None and len(state_trajectory) > 0:
-        state_rows = [_complex_list_to_array(row) for row in state_trajectory]
-        state_dataset = Dataset(data=np.vstack(state_rows))
+    if vm.state_trajectory:
+        state_dataset = Dataset(data=np.vstack(vm.state_trajectory))
 
     measurements_dataset = None
-    if measurements is not None and measurements.size > 0:
+    if vm.measurements is not None and vm.measurements.size > 0:
         measurements_dataset = Dataset(
-            data=np.asarray(measurements, dtype=np.int64),
+            data=vm.measurements,
             attrs={
                 "axis_0": "shots",
                 "axis_1": "qubits",
@@ -105,16 +81,15 @@ def task_result_to_datastore(
         pkg_version = "unknown"
 
     group_attrs = {
-        "backend": backend,
+        "backend": "qutip",
         "version": pkg_version,
         "dt": args.dt,
         "fock_cutoff": args.fock_cutoff,
         "layer": args.layer,
+        "runtime": vm.runtime,
     }
     if args.n_shots is not None:
         group_attrs["n_shots"] = args.n_shots
-    if result.runtime is not None:
-        group_attrs["runtime"] = result.runtime
 
     emulation = AnalogEmulatorDataGroup(
         attrs=group_attrs,
