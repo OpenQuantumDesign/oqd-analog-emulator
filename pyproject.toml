@@ -29,12 +29,15 @@ classifiers = [
 
 dependencies = [
   "pydantic>=2.4",
-  "qutip==5.1.1",
+  "qutip>=5.0.1",
   "Cython",
   "filelock",
   "setuptools",
-  "oqd-compiler-infrastructure@git+https://github.com/openquantumdesign/oqd-compiler-infrastructure",
-  "oqd-core@git+https://github.com/openquantumdesign/oqd-core",
+  "ipykernel>=7.2.0",
+  "jupyter>=1.1.1",
+  "matplotlib>=3.10.8",
+  "oqd-core",
+  "oqd-compiler-infrastructure",
 ]
 
 [project.optional-dependencies]
@@ -53,8 +56,15 @@ test = [
 where = ["src"]
 include = ["oqd_analog_emulator*"]
 
+
+[tool.uv.sources]
+oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", branch = "backend" }
+oqd-analog-emulator = { workspace = true }
+oqd-compiler-infrastructure = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" }
+
 [dependency-groups]
 dev = [
+    "jupyter>=1.1.1",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
 ]
