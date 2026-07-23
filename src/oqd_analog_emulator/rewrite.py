@@ -13,27 +13,23 @@
 # limitations under the License.
 
 import qutip as qt
-
 from oqd_compiler_infrastructure import RewriteRule
 from oqd_core.backend.metric import EntanglementEntropyVN, Expectation
 from oqd_core.interface.analog.expr import (
+    Annihilation,
+    Creation,
+    Identity,
+    MathDiv,
+    MathMul,
+    OperatorAdd,
+    OperatorKron,
+    OperatorMul,
     PauliI,
     PauliX,
     PauliY,
     PauliZ,
-    Identity,
-    Annihilation,
-    Creation,
-    OperatorMul,
-    OperatorKron,
-    OperatorAdd,
-    MathMul,
-    MathDiv,
-    MathAdd,
-    MathNum,
-    Access,
 )
-from oqd_core.interface.analog.statement import Declaration
+
 
 def entanglement_entropy_vn(t, psi, qreg, qmode, n_qreg, n_qmode):
     rho = qt.ptrace(
@@ -216,23 +212,3 @@ class QutipBackendCompiler(RewriteRule):
     #         }
     #     )
 
-class QutipBackendInstructions(RewriteRule):
-    def __init__(self):
-        super().__init__()
-    
-    def map_Access(self, model: Access):
-        return [('LOAD', model.name)]
-    
-    def map_Declaration(self, model: Declaration):
-        instructions = [('GLOBALI', model.name)] + self(model.value) + [('STORE', model.name)]
-        return instructions
-    
-    def map_MathNum(self, model: MathNum):
-        return [('CONSTI', model.value)]
-    
-    def map_MathAdd(self, model: MathAdd):
-        instructions = self(model.expr1) + self(model.expr2) + [('ADDI', )]
-        
-        return instructions
-
- 

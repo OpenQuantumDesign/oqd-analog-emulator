@@ -14,14 +14,12 @@
 
 from oqd_core.backend.base import BackendBase
 from oqd_core.backend.task import Task
+from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
 
 from oqd_analog_emulator.passes import (
     # run_qutip_experiment,
     compiler_analog_circuit_to_qutip_backend,
 )
-
-from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
-
 
 ########################################################################################
 

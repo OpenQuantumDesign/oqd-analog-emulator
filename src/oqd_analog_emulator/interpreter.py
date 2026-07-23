@@ -12,22 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 
+import qutip as qt
 from oqd_core.analysis.utils import ControlFlowGraph
-from oqd_analog_emulator.rewrite import QutipBackendInstructions
+
+from oqd_analog_emulator.instructions import QutipBackendInstructions
 
 
-class QubitObject():
+class QubitObject:
     register: tuple[str, int]
     t: int
-    state: List[int]
+    state: list[int]
 
 
-class QubitRegister():
-    qubits: List[tuple[str, int]]
+class QubitRegister:
+    qubits: list[tuple[str, int]]
     t: int
-    state: List[int]
+    state: list[int]
     n: int # len(state)
 
 
@@ -50,7 +51,7 @@ code = [
    ('LOAD', 'd'),
 ]
 
-class Evaluator():
+class Evaluator:
     def __init__(self):
         self.stack = []
         self.register_stack = []
@@ -93,8 +94,18 @@ class Evaluator():
     def run_MULI(self):
         self.push(self.pop() * self.pop())
     
+    def run_DIVI(self):
+        denom = self.pop()
+        num = self.pop()
+        self.push(num / denom)
+    
+    def run_KRONI(self):
+        op2 = self.pop()
+        op1 = self.pop()
+        self.push(qt.tensor(op1, op2))
+    
 
-class Interpreter():
+class Interpreter:
     def __init__(self, graph: ControlFlowGraph):
         self.graph = graph
         self.nodes = list(graph.nodes())
@@ -107,7 +118,6 @@ class Interpreter():
         instructions = QutipBackendInstructions()(stmt)
         # print(instructions)
         self.evaluator.run(instructions)
-        return self.evaluator.get_store()
     
     def run(self):
         node = 0
@@ -119,13 +129,12 @@ class Interpreter():
                 stmt = current_block.stmt
                 if stmt:
                     # print(stmt)
-                    store = self.evaluate(stmt)
-                    print(store)
+                    self.evaluate(stmt)
             node += 1
             current_block = self.get_block(node)
             
             
-
+    def status(self):
+        return self.evaluator.get_store()
         
-    
     
