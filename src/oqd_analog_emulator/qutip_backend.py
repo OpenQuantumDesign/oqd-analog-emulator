@@ -58,8 +58,8 @@ class QutipBackend(BackendBase):
         cfg = task.program.cfg
         symbol_table = task.program.symbol_table
         
-        circuit, cfg, n_qreg, n_qmode = compile_analog_circuit(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
+        circuit, cfg = compile_analog_circuit(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
 
         # another pass which compiles AnalogCircuit to a QutipExperiment
-        return compiler_analog_circuit_to_qutip_backend(model=circuit, args=task.args, n_qreg=n_qreg, n_qmode=n_qmode)
+        return compiler_analog_circuit_to_qutip_backend(model=circuit, args=task.args)
 

@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import itertools
-import time
 import qutip as qt
 
-from oqd_compiler_infrastructure import RewriteRule, Chain
-from oqd_core.backend.task import TaskResultAnalog
+from oqd_compiler_infrastructure import RewriteRule
 from oqd_core.backend.metric import EntanglementEntropyVN, Expectation
 from oqd_core.interface.analog.expr import (
     PauliI,
@@ -32,15 +28,12 @@ from oqd_core.interface.analog.expr import (
     OperatorKron,
     OperatorAdd,
     MathMul,
-    Evolve,
-    Measure,
+    MathDiv,
+    MathAdd,
+    MathNum,
+    Access,
 )
-from oqd_core.interface.analog.circuit import AnalogCircuit
-from oqd_core.compiler.analog.math.passes import (
-    evaluate_math_expr,
-    simplify_math_expr,
-    print_math_expr,
-)
+from oqd_core.interface.analog.statement import Declaration
 
 def entanglement_entropy_vn(t, psi, qreg, qmode, n_qreg, n_qmode):
     rho = qt.ptrace(
@@ -68,16 +61,34 @@ class QutipMetricConversion(RewriteRule):
         self._n_qreg = n_qreg
         self._n_qmode = n_qmode
     
+    def map_PauliI(self, model: PauliI):
+        return qt.qeye(2)
+    
+    def map_PauliX(self, model: PauliX):
+        return qt.sigmax()
+
+    def map_PauliY(self, model: PauliY):
+        return qt.sigmay()
+
+    def map_PauliZ(self, model: PauliZ):
+        return qt.sigmaz()
+    
     def map_Expectation(self, model: Expectation):
-        assert len(model.operator) > 0, "List of operator terms must be non-empty"
+        # operator: List[Tuple[qt.Qobj, MathExpr]]
+        assert model.operator is not None, "List of operator terms must be non-empty"
+        print(model.operator)
 
         op_exp = None
-        for idx, operator in enumerate(model.operator):
-            coefficient = evaluate_math_expr(operator[1])
-            if idx == 0:
-                op_exp = coefficient * operator[0]
-            else:
-                op_exp + coefficient * operator[0]
+        # for idx, operator in enumerate(model.operator):
+        #     # print(operator[0])
+        #     coefficient = evaluate_math_expr(operator[1])
+        #     # print(f"COEFFICIENT: " + coefficient)
+        #     if idx == 0:
+        #         op_exp = coefficient * operator[0]
+        #         # op_exp = operator[0]
+        #     else:
+        #         op_exp + coefficient * operator[0]
+        op_exp = qt.Qobj(model.operator)
 
         return lambda t, psi: qt.expect(op_exp, psi)
 
@@ -88,15 +99,9 @@ class QutipMetricConversion(RewriteRule):
 
 
 class QutipBackendCompiler(RewriteRule):
-    def __init__(self, qt_metrics, n_shots, fock_cutoff, dt, n_qreg, n_qmode):
+    def __init__(self):
         super().__init__()
-        self.results = TaskResultAnalog(runtime=0)
-        self._qt_metrics = qt_metrics
-        self._n_shots = n_shots
-        self._fock_cutoff = fock_cutoff
-        self._dt = dt
-        self.n_qreg=n_qreg
-        self.n_qmode=n_qmode
+        self._fock_cutoff = 4
     
     def map_PauliI(self, model: PauliI):
         return qt.qeye(2)
@@ -131,79 +136,103 @@ class QutipBackendCompiler(RewriteRule):
     def map_MathMul(self, model: MathMul):
         return model.expr1 * model.expr2
     
-    def map_Evolve(self, model: Evolve):
-        # return QutipOperation(
-        #     hamiltonian=model.hamiltonian,
-        #     duration=model.duration,
-        # )
-        duration = model.duration
-        tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
-
-        qutip_hamiltonian = []
-        for op, coeff in model.hamiltonian:
-            qutip_hamiltonian.append(
-                [op, Chain(simplify_math_expr, print_math_expr)(coeff)]
-            )
-
-        start_runtime = time.time()
-        result_qobj = qt.sesolve(
-            qutip_hamiltonian,
-            self.current_state,
-            tspan,
-            e_ops=self._qt_metrics,
-            options={"store_states": True},
-        )
-        self.results.runtime = time.time() - start_runtime + self.results.runtime
-
-        self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
-
-        for idx, key in enumerate(self.results.metrics.keys()):
-            self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
-
-        self.current_state = result_qobj.final_state
-
-        self.results.state = list(
-            result_qobj.final_state.full().squeeze(),
-        )
-
-    def map_Measure(self, model: Measure):
-        # return QutipMeasurement()
-        if self._n_shots is None:
-            self.results.counts = {}
-        else:
-            probs = np.power(np.abs(self.current_state.full()), 2).squeeze()
-            n_shots = self._n_shots
-            inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            opts = self.n_qreg * [[0, 1]] + self.n_qmode * [
-                list(range(self._fock_cutoff))
-            ]
-            bases = list(itertools.product(*opts))
-            shots = np.array([bases[ind] for ind in inds])
-            bitstrings = ["".join(map(str, shot)) for shot in shots]
-            self.results.counts = {
-                bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
-            }
-
-        self.results.state = list(
-            self.current_state.full().squeeze(),
-        )
+    def map_MathDiv(self, model: MathDiv):
+        return model.expr1 / model.expr2
     
-    def map_AnalogCircuit(self, model: AnalogCircuit):
-        # return QutipExperiment(
-        #     instructions=model.statements
-        # )
-        dims = self.n_qreg * [2] + self.n_qmode * [self._fock_cutoff]
-        self.current_state = qt.tensor([qt.basis(d, 0) for d in dims])
+    # def map_Evolve(self, model: Evolve):
+    #     # return QutipOperation(
+    #     #     hamiltonian=model.hamiltonian,
+    #     #     duration=model.duration,
+    #     # )
+    #     duration = model.duration.value
+    #     tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
 
-        self.results.times.append(0.0)
-        self.results.state = list(
-            self.current_state.full().squeeze(),
-        )
-        self.results.metrics.update(
-            {
-                key: [self._qt_metrics[key](0.0, self.current_state)]
-                for key in self._qt_metrics.keys()
-            }
-        )
+    #     qutip_hamiltonian = []
+    #     for op, coeff in model.hamiltonian:
+    #         qutip_hamiltonian.append(
+    #             [op, Chain(simplify_math_expr, print_math_expr)(coeff)]
+    #         )
+
+    #     start_runtime = time.time()
+    #     result_qobj = qt.sesolve(
+    #         qutip_hamiltonian,
+    #         self.current_state,
+    #         tspan,
+    #         e_ops=self._qt_metrics,
+    #         options={"store_states": True},
+    #     )
+    #     self.results.runtime = time.time() - start_runtime + self.results.runtime
+
+    #     self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
+
+    #     for idx, key in enumerate(self.results.metrics.keys()):
+    #         self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
+
+    #     self.current_state = result_qobj.final_state
+
+    #     self.results.state = list(
+    #         result_qobj.final_state.full().squeeze(),
+    #     )
+
+    # def map_Measure(self, model: Measure):
+    #     # return QutipMeasurement()
+    #     if self._n_shots is None:
+    #         self.results.counts = {}
+    #     else:
+    #         probs = np.power(np.abs(self.current_state.full()), 2).squeeze()
+    #         n_shots = self._n_shots
+    #         inds = np.random.choice(len(probs), size=n_shots, p=probs)
+    #         opts = self.n_qreg * [[0, 1]] + self.n_qmode * [
+    #             list(range(self._fock_cutoff))
+    #         ]
+    #         bases = list(itertools.product(*opts))
+    #         shots = np.array([bases[ind] for ind in inds])
+    #         bitstrings = ["".join(map(str, shot)) for shot in shots]
+    #         self.results.counts = {
+    #             bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
+    #         }
+
+    #     self.results.state = list(
+    #         self.current_state.full().squeeze(),
+    #     )
 
     
+    # def map_AnalogCircuit(self, model: AnalogCircuit):
+    #     # return QutipExperiment(
+    #     #     instructions=model.statements
+    #     # )
+    #     dims = self.n_qreg * [2] + self.n_qmode * [self._fock_cutoff]
+    #     print(dims)
+    #     self.current_state = qt.tensor([qt.basis(d, 0) for d in dims])
+
+    #     self.results.times.append(0.0)
+    #     self.results.state = list(
+    #         self.current_state.full().squeeze(),
+    #     )
+    #     self.results.metrics.update(
+    #         {
+    #             key: [self._qt_metrics[key](0.0, self.current_state)]
+    #             for key in self._qt_metrics.keys()
+    #         }
+    #     )
+
+class QutipBackendInstructions(RewriteRule):
+    def __init__(self):
+        super().__init__()
+    
+    def map_Access(self, model: Access):
+        return [('LOAD', model.name)]
+    
+    def map_Declaration(self, model: Declaration):
+        instructions = [('GLOBALI', model.name)] + self(model.value) + [('STORE', model.name)]
+        return instructions
+    
+    def map_MathNum(self, model: MathNum):
+        return [('CONSTI', model.value)]
+    
+    def map_MathAdd(self, model: MathAdd):
+        instructions = self(model.expr1) + self(model.expr2) + [('ADDI', )]
+        
+        return instructions
+
+ 
