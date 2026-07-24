@@ -16,20 +16,41 @@ import qutip as qt
 from oqd_compiler_infrastructure import RewriteRule
 from oqd_core.interface.analog.expr import (
     Access,
+    AnalogList,
     Annihilation,
+    Bool,
+    BoolAnd,
+    BoolEq,
+    BoolGreaterThan,
+    BoolGreaterThanEq,
+    BoolLessThan,
+    BoolLessThanEq,
+    BoolNot,
+    BoolNotEq,
+    BoolOr,
     Creation,
+    Evolve,
+    Extract,
     Identity,
+    Initialize,
     MathAdd,
     MathDiv,
     MathMul,
     MathNum,
+    MathPow,
     MathSub,
+    MathVar,
+    Measure,
+    ModeRegister,
+    OperatorAdd,
     OperatorKron,
     OperatorMul,
+    OperatorSub,
     PauliI,
     PauliX,
     PauliY,
     PauliZ,
+    QuantumRegister,
 )
 from oqd_core.interface.analog.statement import Declaration
 
@@ -64,10 +85,25 @@ class QutipBackendInstructions(RewriteRule):
     def map_OperatorMul(self, model: OperatorMul):
         instructions = self(model.op1) + self(model.op2) + [('MULI', )]
         return instructions
+    
+    def map_OperatorAdd(self, model: OperatorAdd):
+        instructions = self(model.expr1) + self(model.expr2) + [('ADDI', )]
+        return instructions
+    
+    def map_OperatorSub(self, model: OperatorSub):
+        instructions = self(model.expr1) + self(model.expr2) + [('SUBI', )]
+        return instructions
 
     def map_MathDiv(self, model: MathDiv):
         instructions = self(model.expr1) + self(model.expr2) + [('DIVI', )]
         return instructions
+    
+    def map_MathPow(self, model: MathPow):
+        instructions = self(model.expr1) + self(model.expr2) + [('POWI', )]
+        return instructions
+    
+    def map_MathVar(self, model: MathVar):
+        return [('GLOBALI', model.name)]
     
     def map_PauliI(self, model: PauliI):
         return [('CONSTI', qt.qeye(2))] 
@@ -93,4 +129,75 @@ class QutipBackendInstructions(RewriteRule):
     def map_OperatorKron(self, model: OperatorKron):
         instructions = self(model.op1) + self(model.op2) + [('KRONI', )]
         return instructions
+    
+    def map_Bool(self, model: Bool):
+        return [('CONSTI', model.value)]
+    
+    def map_BoolNot(self, model: BoolNot):
+        instructions =  self(model.expr) + [('NOTI', )]
+        return instructions
+    
+    def map_BoolAnd(self, model: BoolAnd):
+        instructions = self(model.expr1) + self(model.expr2) + [('ANDI', )]
+        return instructions
+    
+    def map_BoolOr(self, model: BoolOr):
+        instructions = self(model.expr1) + self(model.expr2) + [('ORI', )]
+        return instructions
+        
+    def map_BoolEq(self, model: BoolEq):
+        instructions = self(model.expr1) + self(model.expr2) + [('EQI', )]
+        return instructions
+    
+    def map_BoolNotEq(self, model: BoolNotEq):
+        instructions = self(model.expr1) + self(model.expr2) + [('NEQI', )]
+        return instructions
+        
+    def map_BoolLessThan(self, model: BoolLessThan):
+        instructions = self(model.expr1) + self(model.expr2) + [('LTI', )]
+        return instructions
+        
+    def map_BoolLessThanEq(self, model: BoolLessThanEq):
+        instructions = self(model.expr1) + self(model.expr2) + [('LTEQI', )]
+        return instructions
+        
+    def map_BoolGreaterThan(self, model: BoolGreaterThan):
+        instructions = self(model.expr1) + self(model.expr2) + [('GTI', )]
+        return instructions
+    
+    def map_BoolGreaterThanEq(self, model: BoolGreaterThanEq):
+        instructions = self(model.expr1) + self(model.expr2) + [('GTEQI', )]
+        return instructions
+        
+    def map_QuantumRegister(self, model: QuantumRegister):
+        pass
+    
+    def map_ModeRegister(self, model: ModeRegister):
+        pass
+    
+    def map_AnalogList(self, model: AnalogList):
+        instructions = []
+        for value in model.values:
+            instructions += self(value)
+        return instructions
+    
+    def map_Extract(self, model: Extract):
+        pass
+    
+    def map_Evolve(self, model: Evolve):
+        instructions = self(model.hamiltonian) + self(model.duration) + self(model.targets) + [('EVOLVE', )]
+        return instructions
+        
+    def map_Initialize(self, model: Initialize):
+        instructions = self(model.targets) + [('INIT', )]
+        return instructions
+    
+    def map_Measure(self, model: Measure):
+        instructions = self(model.targets) + [('MEASURE', )]
+        return instructions
+    
+    
+
+    
+    
     

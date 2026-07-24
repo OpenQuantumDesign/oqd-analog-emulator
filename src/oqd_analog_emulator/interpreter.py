@@ -66,6 +66,11 @@ class Evaluator:
     def pop(self):
         return self.stack.pop()
     
+    def peek(self):
+        if self.stack:
+            return self.stack[0]
+        return None
+    
     def run(self, code):
         self.pc = 0
         while self.pc < len(code):
@@ -99,10 +104,61 @@ class Evaluator:
         num = self.pop()
         self.push(num / denom)
     
+    def run_POWI(self):
+        exponent = self.pop()
+        base = self.pop()
+        self.push(base ** exponent)
+    
     def run_KRONI(self):
         op2 = self.pop()
         op1 = self.pop()
         self.push(qt.tensor(op1, op2))
+    
+    def run_NOTI(self):
+        self.push(not self.pop())
+    
+    def run_ANDI(self):
+        self.push(self.pop() and self.pop())
+    
+    def run_ORI(self):
+        self.push(self.pop() or self.pop())
+    
+    def run_EQI(self):
+        self.push(self.pop() == self.pop())
+    
+    def run_NEQI(self):
+        self.push(self.pop() != self.pop())
+    
+    def run_LTI(self):
+        rhs = self.pop()
+        lhs = self.pop()
+        self.push(lhs < rhs)
+   
+    def run_LTEQI(self):
+        rhs = self.pop()
+        lhs = self.pop()
+        self.push(lhs <= rhs)
+    
+    def run_GTI(self):
+        rhs = self.pop()
+        lhs = self.pop()
+        self.push(lhs > rhs)   
+
+    def run_GTEQI(self):
+        rhs = self.pop()
+        lhs = self.pop()
+        self.push(lhs >= rhs)
+    
+    def run_EVOLVE(self):
+        targets = self.pop()
+        duration = self.pop()
+        hamiltonian = self.pop()
+    
+    def run_INIT(self):
+        targets = self.pop()
+    
+    def run_MEASURE(self):
+        targets = self.pop()
     
 
 class Interpreter:

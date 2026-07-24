@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
 import numpy as np
-
+import pytest
+from oqd_core.backend.metric import Expectation
+from oqd_core.backend.task import Task, TaskArgsAnalog
+from oqd_core.interface.analog.operation import AnalogCircuit, AnalogGate
 
 ########################################################################################
-
-
 from oqd_core.interface.analog.operator import (
     Annihilation,
     Creation,
@@ -29,9 +28,7 @@ from oqd_core.interface.analog.operator import (
     PauliY,
     PauliZ,
 )
-from oqd_core.interface.analog.operation import AnalogCircuit, AnalogGate
-from oqd_core.backend.metric import Expectation
-from oqd_core.backend.task import Task, TaskArgsAnalog
+
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
 ########################################################################################
