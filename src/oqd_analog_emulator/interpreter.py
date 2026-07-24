@@ -68,7 +68,7 @@ class Evaluator:
     
     def peek(self):
         if self.stack:
-            return self.stack[0]
+            return self.stack[-1]
         return None
     
     def run(self, code):
@@ -79,7 +79,8 @@ class Evaluator:
             self.pc += 1
     
     def run_GLOBALI(self, name):
-        self.store[name] = None
+        if name not in self.store.keys():
+            self.store[name] = None
 
     def run_CONSTI(self, value):
         self.push(value)
@@ -176,18 +177,30 @@ class Interpreter:
         self.evaluator.run(instructions)
     
     def run(self):
-        node = 0
+        node = 1
         current_block = self.get_block(node)
         
         while(current_block.kind != "stop"):
+            stmt = current_block.stmt
             
+            if (current_block.kind == "branch"):
+                self.evaluate(stmt)
+                cond = self.evaluator.pop()
+                if cond:
+                    node = next(key for key, val in current_block.edge_labels.items() if val == 'true')
+                else:
+                    node = next(key for key, val in current_block.edge_labels.items() if val == 'false')
+                
             if current_block.kind == "stmt":
-                stmt = current_block.stmt
                 if stmt:
                     # print(stmt)
                     self.evaluate(stmt)
-            node += 1
+                if current_block.succs:
+                    current_block = current_block.succs[0]
+                    continue
+            # print(node)
             current_block = self.get_block(node)
+            
             
             
     def status(self):
