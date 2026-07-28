@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import numpy as np
+import time
+import itertools
 import qutip as qt
 from oqd_core.analysis.utils import ControlFlowGraph
-
+from oqd_core.backend.task import TaskResultAnalog
 from oqd_analog_emulator.instructions import QutipBackendInstructions
 
 
@@ -32,38 +34,24 @@ class QubitRegister:
     n: int # len(state)
 
 
-code = [
-   ('GLOBALI', 'x'),
-   ('CONSTI', 4),
-   ('STORE', 'x'),
-   ('GLOBALI', 'y'),
-   ('CONSTI', 5),
-   ('STORE', 'y'),
-   ('GLOBALI', 'd'),
-   ('LOAD', 'x'),
-   ('LOAD', 'x'),
-   ('MULI',),
-   ('LOAD', 'y'),
-   ('LOAD', 'y'),
-   ('MULI',),
-   ('ADDI',),
-   ('STORE', 'd'),
-   ('LOAD', 'd'),
-]
-
 class Evaluator:
     def __init__(self):
         self.stack = []
-        self.register_stack = []
         self.store = {}
+        self.GLOBAL_T = 0
+        self.results = TaskResultAnalog(runtime=0)
     
     def get_store(self):
         return self.store
+    
+    def get_results(self):
+        return self.results
         
     def push(self, item):
         self.stack.append(item)
     
     def pop(self):
+        if self.stack == []: return None
         return self.stack.pop()
     
     def peek(self):
@@ -151,17 +139,112 @@ class Evaluator:
         self.push(lhs >= rhs)
     
     def run_EVOLVE(self):
-        targets = self.pop()
-        duration = self.pop()
-        hamiltonian = self.pop()
+        operands = []
+        elem = self.pop()
+        while elem:
+            operands += [elem]
+            elem = self.pop()
+        
+        targets = operands[:-2]
+        duration = operands[-2]
+        hamiltonian = operands[-1]
+        self.evolve(hamiltonian, duration, targets)
+        
     
     def run_INIT(self):
-        targets = self.pop()
+        targets = []
+        elem = self.pop()
+        while elem:
+            targets += [elem]
+            elem = self.pop()
+        self.initialize(targets)
     
     def run_MEASURE(self):
-        targets = self.pop()
+        targets = []
+        elem = self.pop()
+        while elem:
+            targets += [elem]
+            elem = self.pop()
+        self.measure(targets)
     
+    def run_LIST(self, name):
+        elem = self.pop()
+        while elem:
+            if self.store[name] is None:
+                self.store[name] = [elem]
+            else:
+                self.store[name].insert(0, elem)
+            elem = self.pop()
+    
+    def run_EXTRACT(self, name, index):
+        self.push(self.store[name][index])
+    
+    def run_QREG(self, name, size):
+        self.store[name] = []
+        for n in range(size):
+            obj = QubitObject()
+            obj.register = (name, n)
+            obj.state = []
+            obj.t = self.GLOBAL_T
+            self.store[name] += [obj]
+    
+    def evolve(self, hamiltonian, duration, targets):
+        
+        tspan = np.linspace(0, duration, round(duration / 0.1)).tolist()
 
+        for target in targets:
+            start_runtime = time.time()
+            result_qobj = qt.sesolve(
+                hamiltonian,
+                self.current_state,
+                tspan,
+                options={"store_states": True},
+            )
+            self.results.runtime = time.time() - start_runtime + self.results.runtime
+            self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
+
+            # for idx, key in enumerate(self.results.metrics.keys()):
+            #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
+                
+            target.state = result_qobj.final_state
+
+        self.results.state = list(
+            result_qobj.final_state.full().squeeze(),
+        )
+    
+    def measure(self, targets):
+        for target in targets:
+            probs = np.power(np.abs(self.current_state.full()), 2).squeeze()
+            n_shots = 10
+            inds = np.random.choice(len(probs), size=n_shots, p=probs)
+            opts = self.current_state
+            bases = list(itertools.product(*opts))
+            shots = np.array([bases[ind] for ind in inds])
+            bitstrings = ["".join(map(str, shot)) for shot in shots]
+            self.results.counts = {
+                bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
+            }
+
+            self.results.state = list(
+                self.current_state.full().squeeze(),
+            )
+    
+    def initialize(self, targets):
+        dims = len(targets) * [2]
+        # print(dims)
+        self.current_state = qt.tensor([qt.basis(d, 0) for d in dims])
+
+        self.results.times.append(0.0)
+        for target in targets:
+            target.state = list(
+                self.current_state.full().squeeze(),
+            )
+        
+        self.results.state = list(
+            self.current_state.full().squeeze(),
+        )
+
+    
 class Interpreter:
     def __init__(self, graph: ControlFlowGraph):
         self.graph = graph
@@ -201,9 +284,10 @@ class Interpreter:
             # print(node)
             current_block = self.get_block(node)
             
-            
-            
     def status(self):
         return self.evaluator.get_store()
+    
+    def results(self):
+        return self.evaluator.get_results()
         
     

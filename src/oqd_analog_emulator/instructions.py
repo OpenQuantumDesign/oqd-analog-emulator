@@ -64,8 +64,13 @@ class QutipBackendInstructions(RewriteRule):
         return [('LOAD', model.name)]
     
     def map_Declaration(self, model: Declaration):
-        instructions = [('GLOBALI', model.name)] + self(model.value) + [('STORE', model.name)]
-        return instructions
+        if isinstance(model.value, AnalogList):
+            return self.map_AnalogList(model.value, model.name)
+        elif isinstance(model.value, QuantumRegister):
+            return self.map_QuantumRegister(model.value, model.name)
+        else:
+            instructions = [('GLOBALI', model.name)] + self(model.value) + [('STORE', model.name)]
+            return instructions
     
     def map_MathNum(self, model: MathNum):
         return [('CONSTI', model.value)]
@@ -169,20 +174,21 @@ class QutipBackendInstructions(RewriteRule):
         instructions = self(model.expr1) + self(model.expr2) + [('GTEQI', )]
         return instructions
         
-    def map_QuantumRegister(self, model: QuantumRegister):
-        pass
-    
+    def map_QuantumRegister(self, model: QuantumRegister, name: str):
+        return [('GLOBALI', name), ('QREG', name, model.size)]
+        
     def map_ModeRegister(self, model: ModeRegister):
         pass
     
-    def map_AnalogList(self, model: AnalogList):
-        instructions = []
+    def map_AnalogList(self, model: AnalogList, name: str):
+        instructions = [('GLOBALI', name)]
         for value in model.values:
             instructions += self(value)
+        instructions += [('LIST', name)]
         return instructions
     
     def map_Extract(self, model: Extract):
-        pass
+        return [('EXTRACT', model.access.name, model.index)]
     
     def map_Evolve(self, model: Evolve):
         instructions = self(model.hamiltonian) + self(model.duration) + self(model.targets) + [('EVOLVE', )]
@@ -198,6 +204,4 @@ class QutipBackendInstructions(RewriteRule):
     
     
 
-    
-    
     
