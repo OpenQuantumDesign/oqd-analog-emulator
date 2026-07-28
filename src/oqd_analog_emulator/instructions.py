@@ -40,6 +40,7 @@ from oqd_core.interface.analog.expr import (
     MathPow,
     MathSub,
     MathVar,
+    MathFunc,
     Measure,
     ModeRegister,
     OperatorAdd,
@@ -109,6 +110,16 @@ class QutipBackendInstructions(RewriteRule):
     
     def map_MathVar(self, model: MathVar):
         return [('GLOBALI', model.name)]
+    
+    def map_MathFunc(self, model: MathFunc):
+        if isinstance(model.expr, list):
+            instructions = []
+            for expr in model.expr:
+                instructions += self(expr)
+        else:
+            instructions = self(model.expr) 
+        instructions += [('FUNC', model.func)]
+        return instructions
     
     def map_PauliI(self, model: PauliI):
         return [('CONSTI', qt.qeye(2))] 

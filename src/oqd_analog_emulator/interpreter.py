@@ -16,6 +16,7 @@ import numpy as np
 import time
 import itertools
 import qutip as qt
+import math
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.backend.task import TaskResultAnalog
 from oqd_analog_emulator.instructions import QutipBackendInstructions
@@ -78,6 +79,20 @@ class Evaluator:
 
     def run_LOAD(self, name):
         self.push(self.store[name])
+    
+    def run_FUNC(self, func):
+        output = None
+        if func == "abs":
+            output = abs(self.pop())
+        operation = getattr(math, func, None)
+        if operation:
+            if func == "atan2":
+                x = self.pop()
+                y = self.pop()
+                output = operation(y, x)
+            else:
+                output = operation(self.pop())
+        self.push(output)
 
     def run_ADDI(self):
         self.push(self.pop() + self.pop())
