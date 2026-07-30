@@ -18,36 +18,42 @@ import itertools
 import qutip as qt
 import math
 from oqd_core.analysis.utils import ControlFlowGraph
-from oqd_core.backend.task import TaskResultAnalog
 from oqd_analog_emulator.instructions import QutipBackendInstructions
 
 
 class QubitObject:
-    register: tuple[str, int]
-    t: int
-    state: list[int]
-
+    name: tuple[str, int]
+    time: int
+    state: object
+    
 
 class QubitRegister:
     qubits: list[tuple[str, int]]
-    t: int
-    state: list[int]
-    n: int # len(state)
+    time: int
+    state: object
+    
+    @property
+    def n(self):
+        return len(self.qubits)
 
 
-class Evaluator:
-    def __init__(self):
+class ModeObject:
+    name: tuple[str, int]
+    time: int
+    state: object
+
+class MethodTable:
+    def __init__(self, n_shots = 10, fock_cutoff = 4, dt = 0.1):
+        self._n_shots = n_shots
+        self._fock_cutoff = fock_cutoff
+        self._dt = dt
         self.stack = []
         self.store = {}
-        self.GLOBAL_T = 0
-        self.results = TaskResultAnalog(runtime=0)
+        self.GLOBAL_T = 0.0
     
     def get_store(self):
         return self.store
     
-    def get_results(self):
-        return self.results
-        
     def push(self, item):
         self.stack.append(item)
     
@@ -82,15 +88,22 @@ class Evaluator:
     
     def run_FUNC(self, func):
         output = None
-        if func == "abs":
-            output = abs(self.pop())
         operation = getattr(math, func, None)
-        if operation:
-            if func == "atan2":
+        if operation is None:
+            operation = getattr(np, func, None)
+        if operation is None:
+            raise ValueError("Unknown math function")
+            
+        match func:
+            case "abs":
+                output = abs(self.pop())
+            case "heaviside":
+                output = np.heaviside(self.pop(), 0)
+            case "atan2":
                 x = self.pop()
                 y = self.pop()
                 output = operation(y, x)
-            else:
+            case _:
                 output = operation(self.pop())
         self.push(output)
 
@@ -117,6 +130,9 @@ class Evaluator:
         op2 = self.pop()
         op1 = self.pop()
         self.push(qt.tensor(op1, op2))
+    
+    def run_IMAGI(self):
+        self.push(1j)
     
     def run_NOTI(self):
         self.push(not self.pop())
@@ -163,7 +179,7 @@ class Evaluator:
         targets = operands[:-2]
         duration = operands[-2]
         hamiltonian = operands[-1]
-        self.evolve(hamiltonian, duration, targets)
+        self._evolve(hamiltonian, duration, targets)
         
     
     def run_INIT(self):
@@ -172,7 +188,7 @@ class Evaluator:
         while elem:
             targets += [elem]
             elem = self.pop()
-        self.initialize(targets)
+        self._initialize(targets)
     
     def run_MEASURE(self):
         targets = []
@@ -180,7 +196,7 @@ class Evaluator:
         while elem:
             targets += [elem]
             elem = self.pop()
-        self.measure(targets)
+        self._measure(targets)
     
     def run_LIST(self, name):
         elem = self.pop()
@@ -200,79 +216,86 @@ class Evaluator:
             obj = QubitObject()
             obj.register = (name, n)
             obj.state = []
-            obj.t = self.GLOBAL_T
+            obj.time = self.GLOBAL_T
             self.store[name] += [obj]
     
-    def evolve(self, hamiltonian, duration, targets):
+    def run_MREG(self, name, size):
+        self.store[name] = []
+        for n in range(size):
+            obj = ModeObject()
+            self.store[name] += [obj]
+        
+    
+    def _evolve(self, hamiltonian, duration, targets):
         
         tspan = np.linspace(0, duration, round(duration / 0.1)).tolist()
+        results = {}
 
         for target in targets:
             start_runtime = time.time()
             result_qobj = qt.sesolve(
                 hamiltonian,
-                self.current_state,
+                target.state, # Tensor product
                 tspan,
                 options={"store_states": True},
             )
-            self.results.runtime = time.time() - start_runtime + self.results.runtime
-            self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
+            # print(self.results.runtime)
+            target.time = time.time() - start_runtime + target.time
+            # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
 
             # for idx, key in enumerate(self.results.metrics.keys()):
             #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
                 
             target.state = result_qobj.final_state
-
-        self.results.state = list(
-            result_qobj.final_state.full().squeeze(),
-        )
+            results[target] = result_qobj.final_state.full().squeeze()
+            # self.current_state = result_qobj.final_state
+        
+        self.GLOBAL_T += duration
+        self.push(results)
     
-    def measure(self, targets):
+    def _measure(self, targets):
+        counts = {}
         for target in targets:
-            probs = np.power(np.abs(self.current_state.full()), 2).squeeze()
+            probs = np.power(np.abs(target.state.full()), 2).squeeze()
             n_shots = 10
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            opts = self.current_state
+            # print(inds)
+            opts = len(targets) * [[0,1]]
             bases = list(itertools.product(*opts))
+            # print(bases)
             shots = np.array([bases[ind] for ind in inds])
             bitstrings = ["".join(map(str, shot)) for shot in shots]
-            self.results.counts = {
+            counts[target] = {
                 bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
             }
+        
+        self.push(counts)
 
-            self.results.state = list(
-                self.current_state.full().squeeze(),
-            )
     
-    def initialize(self, targets):
+    def _initialize(self, targets):
         dims = len(targets) * [2]
         # print(dims)
-        self.current_state = qt.tensor([qt.basis(d, 0) for d in dims])
 
-        self.results.times.append(0.0)
+        # self.results.times.append(0.0)
         for target in targets:
-            target.state = list(
-                self.current_state.full().squeeze(),
-            )
-        
-        self.results.state = list(
-            self.current_state.full().squeeze(),
-        )
+            target.state = qt.tensor([qt.basis(d, 0) for d in dims])
+            target.time = self.GLOBAL_T
+
 
     
 class Interpreter:
-    def __init__(self, graph: ControlFlowGraph):
+    def __init__(self, graph: ControlFlowGraph, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1):
         self.graph = graph
         self.nodes = list(graph.nodes())
-        self.evaluator = Evaluator()
-    
+        self.method_table = MethodTable(n_shots, fock_cutoff, dt)
+        
     def get_block(self, node: int = 0):
         return self.graph.blocks[node]
 
     def evaluate(self, stmt):
         instructions = QutipBackendInstructions()(stmt)
         # print(instructions)
-        self.evaluator.run(instructions)
+        self.method_table.run(instructions)
     
     def run(self):
         node = 1
@@ -283,7 +306,7 @@ class Interpreter:
             
             if (current_block.kind == "branch"):
                 self.evaluate(stmt)
-                cond = self.evaluator.pop()
+                cond = self.method_table.pop()
                 if cond:
                     node = next(key for key, val in current_block.edge_labels.items() if val == 'true')
                 else:
@@ -300,9 +323,9 @@ class Interpreter:
             current_block = self.get_block(node)
             
     def status(self):
-        return self.evaluator.get_store()
+        return self.method_table.get_store()
     
-    def results(self):
-        return self.evaluator.get_results()
+    # def results(self):
+    #     return self.method_table.get_results()
         
     

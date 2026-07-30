@@ -37,6 +37,7 @@ from oqd_core.interface.analog.expr import (
     MathDiv,
     MathMul,
     MathNum,
+    MathImag,
     MathPow,
     MathSub,
     MathVar,
@@ -69,12 +70,17 @@ class QutipBackendInstructions(RewriteRule):
             return self.map_AnalogList(model.value, model.name)
         elif isinstance(model.value, QuantumRegister):
             return self.map_QuantumRegister(model.value, model.name)
+        elif isinstance(model.value, ModeRegister):
+            return self.map_ModeRegister(model.value, model.name)
         else:
             instructions = [('GLOBALI', model.name)] + self(model.value) + [('STORE', model.name)]
             return instructions
     
     def map_MathNum(self, model: MathNum):
         return [('CONSTI', model.value)]
+    
+    def map_MathImag(self, model: MathImag):
+        return [('IMAGI',)]
     
     def map_MathAdd(self, model: MathAdd):
         instructions = self(model.expr1) + self(model.expr2) + [('ADDI', )]
@@ -117,7 +123,7 @@ class QutipBackendInstructions(RewriteRule):
             for expr in model.expr:
                 instructions += self(expr)
         else:
-            instructions = self(model.expr) 
+            instructions = self(model.expr)
         instructions += [('FUNC', model.func)]
         return instructions
     
@@ -188,8 +194,8 @@ class QutipBackendInstructions(RewriteRule):
     def map_QuantumRegister(self, model: QuantumRegister, name: str):
         return [('GLOBALI', name), ('QREG', name, model.size)]
         
-    def map_ModeRegister(self, model: ModeRegister):
-        pass
+    def map_ModeRegister(self, model: ModeRegister, name: str):
+        return [('GLOBALI', name), ('MREG', name, model.size)]
     
     def map_AnalogList(self, model: AnalogList, name: str):
         instructions = [('GLOBALI', name)]
