@@ -58,9 +58,9 @@ from oqd_core.interface.analog.statement import Declaration
 
 
 class QutipBackendInstructions(RewriteRule):
-    def __init__(self):
+    def __init__(self, fock_cutoff: int = 4):
         super().__init__()
-        self._fock_cutoff = 4
+        self._fock_cutoff = fock_cutoff
     
     def map_Access(self, model: Access):
         return [('LOAD', model.name)]
@@ -72,50 +72,52 @@ class QutipBackendInstructions(RewriteRule):
             return self.map_QuantumRegister(model.value, model.name)
         elif isinstance(model.value, ModeRegister):
             return self.map_ModeRegister(model.value, model.name)
+        elif isinstance(model.value, Extract):
+            return [('DEC_EX', model.name, model.value.access.name, model.value.index)]
         else:
-            instructions = [('GLOBALI', model.name)] + self(model.value) + [('STORE', model.name)]
+            instructions = [('GLOBAL', model.name)] + self(model.value) + [('STORE', model.name)]
             return instructions
     
     def map_MathNum(self, model: MathNum):
-        return [('CONSTI', model.value)]
+        return [('CONST', model.value)]
     
     def map_MathImag(self, model: MathImag):
-        return [('IMAGI',)]
+        return [('IMAG',)]
     
     def map_MathAdd(self, model: MathAdd):
-        instructions = self(model.expr1) + self(model.expr2) + [('ADDI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('ADD', )]
         return instructions
     
     def map_MathSub(self, model: MathSub):
-        instructions = self(model.expr1) + self(model.expr2) + [('SUBI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('SUB', )]
         return instructions
 
     def map_MathMul(self, model: MathMul):
-        instructions = self(model.expr1) + self(model.expr2) + [('MULI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('MUL', )]
         return instructions
     
     def map_OperatorMul(self, model: OperatorMul):
-        instructions = self(model.op1) + self(model.op2) + [('MULI', )]
+        instructions = self(model.op1) + self(model.op2) + [('MUL', )]
         return instructions
     
     def map_OperatorAdd(self, model: OperatorAdd):
-        instructions = self(model.expr1) + self(model.expr2) + [('ADDI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('ADD', )]
         return instructions
     
     def map_OperatorSub(self, model: OperatorSub):
-        instructions = self(model.expr1) + self(model.expr2) + [('SUBI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('SUB', )]
         return instructions
 
     def map_MathDiv(self, model: MathDiv):
-        instructions = self(model.expr1) + self(model.expr2) + [('DIVI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('DIV', )]
         return instructions
     
     def map_MathPow(self, model: MathPow):
-        instructions = self(model.expr1) + self(model.expr2) + [('POWI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('POW', )]
         return instructions
     
     def map_MathVar(self, model: MathVar):
-        return [('GLOBALI', model.name)]
+        return [('GLOBAL', model.name)]
     
     def map_MathFunc(self, model: MathFunc):
         if isinstance(model.expr, list):
@@ -128,77 +130,77 @@ class QutipBackendInstructions(RewriteRule):
         return instructions
     
     def map_PauliI(self, model: PauliI):
-        return [('CONSTI', qt.qeye(2))] 
+        return [('CONST', qt.qeye(2))] 
     
     def map_PauliX(self, model: PauliX):
-        return [('CONSTI', qt.sigmax())]
+        return [('CONST', qt.sigmax())]
 
     def map_PauliY(self, model: PauliY):
-        return [('CONSTI', qt.sigmay())]
+        return [('CONST', qt.sigmay())]
 
     def map_PauliZ(self, model: PauliZ):
-        return [('CONSTI', qt.sigmaz())]
+        return [('CONST', qt.sigmaz())]
 
     def map_Identity(self, model: Identity):
-        return [('CONSTI', qt.qeye(self._fock_cutoff))]
+        return [('CONST', qt.qeye(self._fock_cutoff))]
 
     def map_Creation(self, model: Annihilation):
-        return [('CONSTI', qt.create(self._fock_cutoff))]
+        return [('CONST', qt.create(self._fock_cutoff))]
 
     def map_Annihilation(self, model: Creation):
-        return [('CONSTI', qt.destroy(self._fock_cutoff))]
+        return [('CONST', qt.destroy(self._fock_cutoff))]
 
     def map_OperatorKron(self, model: OperatorKron):
-        instructions = self(model.op1) + self(model.op2) + [('KRONI', )]
+        instructions = self(model.op1) + self(model.op2) + [('KRON', )]
         return instructions
     
     def map_Bool(self, model: Bool):
-        return [('CONSTI', model.value)]
+        return [('CONST', model.value)]
     
     def map_BoolNot(self, model: BoolNot):
-        instructions =  self(model.expr) + [('NOTI', )]
+        instructions =  self(model.expr) + [('NOT', )]
         return instructions
     
     def map_BoolAnd(self, model: BoolAnd):
-        instructions = self(model.expr1) + self(model.expr2) + [('ANDI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('AND', )]
         return instructions
     
     def map_BoolOr(self, model: BoolOr):
-        instructions = self(model.expr1) + self(model.expr2) + [('ORI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('OR', )]
         return instructions
         
     def map_BoolEq(self, model: BoolEq):
-        instructions = self(model.expr1) + self(model.expr2) + [('EQI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('EQ', )]
         return instructions
     
     def map_BoolNotEq(self, model: BoolNotEq):
-        instructions = self(model.expr1) + self(model.expr2) + [('NEQI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('NEQ', )]
         return instructions
         
     def map_BoolLessThan(self, model: BoolLessThan):
-        instructions = self(model.expr1) + self(model.expr2) + [('LTI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('LT', )]
         return instructions
         
     def map_BoolLessThanEq(self, model: BoolLessThanEq):
-        instructions = self(model.expr1) + self(model.expr2) + [('LTEQI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('LTEQ', )]
         return instructions
         
     def map_BoolGreaterThan(self, model: BoolGreaterThan):
-        instructions = self(model.expr1) + self(model.expr2) + [('GTI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('GT', )]
         return instructions
     
     def map_BoolGreaterThanEq(self, model: BoolGreaterThanEq):
-        instructions = self(model.expr1) + self(model.expr2) + [('GTEQI', )]
+        instructions = self(model.expr1) + self(model.expr2) + [('GTEQ', )]
         return instructions
         
     def map_QuantumRegister(self, model: QuantumRegister, name: str):
-        return [('GLOBALI', name), ('QREG', name, model.size)]
+        return [('QREG', name, model.size)]
         
     def map_ModeRegister(self, model: ModeRegister, name: str):
-        return [('GLOBALI', name), ('MREG', name, model.size)]
+        return [('MREG', name, model.size)]
     
     def map_AnalogList(self, model: AnalogList, name: str):
-        instructions = [('GLOBALI', name)]
+        instructions = [('GLOBAL', name)]
         for value in model.values:
             instructions += self(value)
         instructions += [('LIST', name)]

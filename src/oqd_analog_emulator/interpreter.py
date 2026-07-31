@@ -28,7 +28,7 @@ class QubitObject:
     
 
 class QubitRegister:
-    qubits: list[tuple[str, int]]
+    qubits: list[tuple[str, int]] = []
     time: int
     state: object
     
@@ -42,14 +42,16 @@ class ModeObject:
     time: int
     state: object
 
-class MethodTable:
+class Interpreter:
     def __init__(self, n_shots = 10, fock_cutoff = 4, dt = 0.1):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
         self._dt = dt
         self.stack = []
         self.store = {}
+        self.registers = {}
         self.GLOBAL_T = 0.0
+        self.history = {}
     
     def get_store(self):
         return self.store
@@ -73,17 +75,21 @@ class MethodTable:
             getattr(self, f'run_{op}')(*opargs)
             self.pc += 1
     
-    def run_GLOBALI(self, name):
+    def run_GLOBAL(self, name):
         if name not in self.store.keys():
             self.store[name] = None
 
-    def run_CONSTI(self, value):
+    def run_CONST(self, value):
         self.push(value)
     
     def run_STORE(self, name):
         self.store[name] = self.pop()
 
     def run_LOAD(self, name):
+        if name not in self.store.keys():
+            registers = self.registers[name]
+            for name in registers:
+                self.push(self.store[name])
         self.push(self.store[name])
     
     def run_FUNC(self, func):
@@ -107,64 +113,64 @@ class MethodTable:
                 output = operation(self.pop())
         self.push(output)
 
-    def run_ADDI(self):
+    def run_ADD(self):
         self.push(self.pop() + self.pop())
     
-    def run_SUBI(self):
+    def run_SUB(self):
         self.push(-self.pop() + self.pop())
 
-    def run_MULI(self):
+    def run_MUL(self):
         self.push(self.pop() * self.pop())
     
-    def run_DIVI(self):
+    def run_DIV(self):
         denom = self.pop()
         num = self.pop()
         self.push(num / denom)
     
-    def run_POWI(self):
+    def run_POW(self):
         exponent = self.pop()
         base = self.pop()
         self.push(base ** exponent)
     
-    def run_KRONI(self):
+    def run_KRON(self):
         op2 = self.pop()
         op1 = self.pop()
         self.push(qt.tensor(op1, op2))
     
-    def run_IMAGI(self):
+    def run_IMAG(self):
         self.push(1j)
     
-    def run_NOTI(self):
+    def run_NOT(self):
         self.push(not self.pop())
     
-    def run_ANDI(self):
+    def run_AND(self):
         self.push(self.pop() and self.pop())
     
-    def run_ORI(self):
+    def run_OR(self):
         self.push(self.pop() or self.pop())
     
-    def run_EQI(self):
+    def run_EQ(self):
         self.push(self.pop() == self.pop())
     
-    def run_NEQI(self):
+    def run_NEQ(self):
         self.push(self.pop() != self.pop())
     
-    def run_LTI(self):
+    def run_LT(self):
         rhs = self.pop()
         lhs = self.pop()
         self.push(lhs < rhs)
    
-    def run_LTEQI(self):
+    def run_LTEQ(self):
         rhs = self.pop()
         lhs = self.pop()
         self.push(lhs <= rhs)
     
-    def run_GTI(self):
+    def run_GT(self):
         rhs = self.pop()
         lhs = self.pop()
         self.push(lhs > rhs)   
 
-    def run_GTEQI(self):
+    def run_GTEQ(self):
         rhs = self.pop()
         lhs = self.pop()
         self.push(lhs >= rhs)
@@ -208,94 +214,123 @@ class MethodTable:
             elem = self.pop()
     
     def run_EXTRACT(self, name, index):
-        self.push(self.store[name][index])
+        self.push(self.store[(name, index)])
+    
+    def run_DEC_EX(self, name, extract, index):
+        self.registers[name] = [(extract, index)]
     
     def run_QREG(self, name, size):
-        self.store[name] = []
+        self.registers[name] = []
         for n in range(size):
             obj = QubitObject()
-            obj.register = (name, n)
+            obj.name = (name, n)
             obj.state = []
             obj.time = self.GLOBAL_T
-            self.store[name] += [obj]
+            self.store[(name, n)] = obj
+            self.registers[name].append((name, n))
+        
     
     def run_MREG(self, name, size):
         self.store[name] = []
         for n in range(size):
             obj = ModeObject()
-            self.store[name] += [obj]
+            obj.name = (name, n)
+            obj.state = []
+            obj.time = self.GLOBAL_T
+            self.store[(name, n)] = obj
         
     
     def _evolve(self, hamiltonian, duration, targets):
         
-        tspan = np.linspace(0, duration, round(duration / 0.1)).tolist()
+        tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
         results = {}
-
+        states = []
         for target in targets:
-            start_runtime = time.time()
-            result_qobj = qt.sesolve(
-                hamiltonian,
-                target.state, # Tensor product
-                tspan,
-                options={"store_states": True},
-            )
-            # print(self.results.runtime)
-            target.time = time.time() - start_runtime + target.time
-            # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
-
-            # for idx, key in enumerate(self.results.metrics.keys()):
-            #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
-                
-            target.state = result_qobj.final_state
-            results[target] = result_qobj.final_state.full().squeeze()
-            # self.current_state = result_qobj.final_state
-        
+            states += target.state
+        print(states)
+            
+        start_runtime = time.time()
+        result_qobj = qt.sesolve(
+            hamiltonian,
+            qt.tensor(qt.Qobj(states)), # Tensor product
+            tspan,
+            options={"store_states": True},
+        )
+        # print(self.results.runtime)
+        target.time = time.time() - start_runtime + target.time
         self.GLOBAL_T += duration
+        # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
+
+        # for idx, key in enumerate(self.results.metrics.keys()):
+        #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
+            
+        # target.state = result_qobj.final_state
+        results = result_qobj.final_state.full().squeeze()
+    
+        register = QubitRegister()
+        register.time = self.GLOBAL_T
+        register.state = result_qobj.final_state
+        for target in targets:
+            if target.name not in register.qubits:
+                register.qubits.append(target.name)
+        
+        for target in targets:
+            self.store[target.name] = register
+        
         self.push(results)
     
     def _measure(self, targets):
         counts = {}
+        ind = 0
         for target in targets:
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
-            n_shots = 10
+            n_shots = self._n_shots
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
             # print(inds)
-            opts = len(targets) * [[0,1]]
+            dims = 2
+            if isinstance(target, ModeObject):
+                dims = self._fock_cutoff
+            opts = len(targets) * [list(range(dims))]
             bases = list(itertools.product(*opts))
             # print(bases)
             shots = np.array([bases[ind] for ind in inds])
             bitstrings = ["".join(map(str, shot)) for shot in shots]
-            counts[target] = {
+            counts[ind] = {
                 bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
             }
+            ind += 1
         
         self.push(counts)
 
     
     def _initialize(self, targets):
-        dims = len(targets) * [2]
+        # dims = len(targets) * [2]
         # print(dims)
 
         # self.results.times.append(0.0)
         for target in targets:
-            target.state = qt.tensor([qt.basis(d, 0) for d in dims])
+            if isinstance(target, QubitObject):
+                target.state = qt.Qobj([1, 0])
+            elif isinstance(target, ModeObject):
+                target.state = qt.Qobj([self._fock_cutoff, 0])
             target.time = self.GLOBAL_T
 
 
     
-class Interpreter:
+class IRGenerator:
     def __init__(self, graph: ControlFlowGraph, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1):
         self.graph = graph
         self.nodes = list(graph.nodes())
-        self.method_table = MethodTable(n_shots, fock_cutoff, dt)
+        self.interpreter = Interpreter(n_shots, fock_cutoff, dt)
+        self._fock_cutoff = fock_cutoff
         
     def get_block(self, node: int = 0):
         return self.graph.blocks[node]
 
     def evaluate(self, stmt):
-        instructions = QutipBackendInstructions()(stmt)
+        instructions = QutipBackendInstructions(fock_cutoff=self._fock_cutoff)(stmt)
         # print(instructions)
-        self.method_table.run(instructions)
+        self.interpreter.run(instructions)
     
     def run(self):
         node = 1
@@ -306,7 +341,7 @@ class Interpreter:
             
             if (current_block.kind == "branch"):
                 self.evaluate(stmt)
-                cond = self.method_table.pop()
+                cond = self.interpreter.pop()
                 if cond:
                     node = next(key for key, val in current_block.edge_labels.items() if val == 'true')
                 else:
@@ -323,9 +358,5 @@ class Interpreter:
             current_block = self.get_block(node)
             
     def status(self):
-        return self.method_table.get_store()
-    
-    # def results(self):
-    #     return self.method_table.get_results()
-        
+        return self.interpreter.get_store()
     
