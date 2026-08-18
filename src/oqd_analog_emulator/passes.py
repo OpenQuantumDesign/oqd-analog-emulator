@@ -14,48 +14,136 @@
 
 from oqd_compiler_infrastructure import Post, Pre
 from oqd_core.interface.analog.circuit import AnalogCircuit
-
+import qutip as qt
+import numpy as np
+from oqd_compiler_infrastructure import ConversionRule
 from oqd_analog_emulator.rewrite import (
     QutipBackendCompiler,
     QutipMetricConversion,
 )
-
-########################################################################################
-
-__all__ = [
-    # "compiler_analog_circuit_to_qutipIR",
-    # "compiler_analog_args_to_qutipIR",
-    "compiler_analog_circuit_to_qutip_backend",
-    # "run_qutip_experiment",
-]
+from oqd_dataschema import Datastore, GroupBase, Dataset
 
 ########################################################################################
 
 
-def compiler_analog_circuit_to_qutip_backend(model: AnalogCircuit, args, n_qreg, n_qmode):
+class QutipBackendCompiler(ConversionRule):
     """
-    This compiles ([`AnalogCircuit`][oqd_core.interface.analog.operation.AnalogCircuit] to a list of  [`QutipOperation`][oqd_analog_emulator.interface.QutipOperation] objects
+    This is a ConversionRule which compiles analog layer objects to QutipExperiment objects
 
     Args:
-        model (AnalogCircuit):
-        fock_cutoff (int): fock_cutoff for Ladder Operators
+        model (VisitableBaseModel): This takes in objects in Analog level and converts them to representations which can be used to run QuTip simulations.
 
     Returns:
-        (list(QutipOperation)):
+        model (Union[VisitableBaseModel, Any]): QuTip objects and representations which can be used to run QuTip simulations
 
     """
-    metrics = Post(QutipMetricConversion(n_qreg=n_qreg, n_qmode=n_qmode))(args.metrics)
 
-    interpreter = Pre(QutipBackendCompiler(
-            qt_metrics=metrics,
-            n_shots=args.n_shots,
-            fock_cutoff=args.fock_cutoff,
-            dt=args.dt,
-            n_qreg=n_qreg,
-            n_qmode=n_qmode,
+    def __init__(self, fock_cutoff=None, current_time=None):
+        super().__init__()
+        self._fock_cutoff = fock_cutoff
+        self.current_time = current_time
+
+    def map_PauliI(self, model, operands):
+        op = qt.qeye(2)
+        return qt.QobjEvo(op)
+
+    def map_PauliX(self, model, operands):
+        op = qt.sigmax()
+        return qt.QobjEvo(op)
+
+    def map_PauliY(self, model, operands):
+        op = qt.sigmay()
+        return qt.QobjEvo(op)
+
+    def map_PauliZ(self, model, operands):
+        op = qt.sigmaz()
+        return qt.QobjEvo(op)
+
+    def map_Identity(self, model, operands):
+        op = qt.qeye(self._fock_cutoff)
+        return qt.QobjEvo(op)
+
+    def map_Annihilation(self, model, operands):
+        op = qt.destroy(self._fock_cutoff)
+        return qt.QobjEvo(op)
+
+    def map_Creation(self, model, operands):
+        op = qt.create(self._fock_cutoff)
+        return qt.QobjEvo(op)
+
+    def map_OperatorAdd(self, model, operands):
+        return operands["op1"] + operands["op2"]
+
+    def map_OperatorMul(self, model, operands):
+        # print(operands)
+        return qt.QobjEvo(lambda t: operands["op1"](t) * operands["op2"](t))
+
+    def map_OperatorKron(self, model, operands):
+        return qt.tensor(operands["op1"], operands["op2"])
+
+    def map_MathNum(self, model, operands):
+        return lambda t: model.value
+
+    def map_MathImag(self, model, operands):
+        return lambda t: 1j
+
+    def map_MathVar(self, model, operands):
+        if model.name == "#t":
+            return lambda t: t
+        
+        if model.name == "#s":
+            return lambda t: t - self.current_time
+
+        raise ValueError(
+            f"Unsupported variable {model.name}, only variable t is supported"
         )
-    )
-    interpreter(model=model)
 
-    return interpreter.children[0].results
+    def map_MathFunc(self, model, operands):
+        if model.func in [
+            "abs",
+            "sin",
+            "cos",
+            "tan",
+            "exp",
+            "log",
+            "sinh",
+            "cosh",
+            "tanh",
+            "atan",
+            "acos",
+            "asin",
+            "atanh",
+            "asinh",
+            "acosh",
+            "conj",
+            "real",
+            "imag",
+            "atan2",
+        ]:
+            if isinstance(operands["expr"], list):
+                return lambda t: getattr(np, model.func)(
+                    *[o(t) for o in operands["expr"]]
+                )
+            return lambda t: getattr(np, model.func)(operands["expr"](t))
+
+        if model.func == "heaviside":
+            return lambda t: np.heaviside(operands["expr"](t), 1)
+
+        raise ValueError(f"Unsupported function {model.func}")
+
+    def map_MathAdd(self, model, operands):
+        return lambda t: operands["expr1"](t) + operands["expr2"](t)
+
+    def map_MathSub(self, model, operands):
+        return lambda t: operands["expr1"](t) - operands["expr2"](t)
+
+    def map_MathMul(self, model, operands):
+        return lambda t: operands["expr1"](t) * operands["expr2"](t)
+
+    def map_MathDiv(self, model, operands):
+        return lambda t: operands["expr1"](t) / operands["expr2"](t)
+
+    def map_MathPow(self, model, operands):
+        return lambda t: operands["expr1"](t) ** operands["expr2"](t)
+
 

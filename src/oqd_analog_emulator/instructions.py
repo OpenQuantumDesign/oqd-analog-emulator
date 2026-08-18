@@ -57,6 +57,25 @@ from oqd_core.interface.analog.expr import (
 from oqd_core.interface.analog.statement import Declaration
 
 
+def _is_constant_math(model) -> bool:
+    if isinstance(model, (MathNum, MathImag)):
+        return True
+    if isinstance(model, MathVar):
+        return False
+    if isinstance(model, Access):
+        return False
+    if isinstance(model, MathFunc):
+        arg = model.expr
+        if isinstance(arg, list):
+            return all(_is_constant_math(a) for a in arg)
+        return _is_constant_math(arg)
+    if isinstance(model, (MathAdd, MathSub, MathMul, MathDiv, MathPow)):
+        return _is_constant_math(model.expr1) and _is_constant_math(model.expr2)
+    if isinstance(model, (OperatorAdd, OperatorKron, OperatorMul, OperatorSub)):
+        return _is_constant_math(model.op1) and _is_constant_math(model.op2)
+    return True
+
+
 class QutipBackendInstructions(RewriteRule):
     def __init__(self, fock_cutoff: int = 4):
         super().__init__()
@@ -66,60 +85,86 @@ class QutipBackendInstructions(RewriteRule):
         return [('LOAD', model.name)]
     
     def map_Declaration(self, model: Declaration):
-        if isinstance(model.value, AnalogList):
+        # print(model.name)
+        # print(model.value)
+        if not _is_constant_math(model):
+            return [('CONST', model)]
+        elif isinstance(model.value, AnalogList):
             return self.map_AnalogList(model.value, model.name)
         elif isinstance(model.value, QuantumRegister):
             return self.map_QuantumRegister(model.value, model.name)
         elif isinstance(model.value, ModeRegister):
             return self.map_ModeRegister(model.value, model.name)
-        elif isinstance(model.value, Extract):
-            return [('DEC_EX', model.name, model.value.access.name, model.value.index)]
+        # elif isinstance(model.value, Extract):
+        #     return [('DEC_EX', model.name, model.value.access.name, model.value.index)]
         else:
             instructions = [('GLOBAL', model.name)] + self(model.value) + [('STORE', model.name)]
             return instructions
     
     def map_MathNum(self, model: MathNum):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         return [('CONST', model.value)]
     
     def map_MathImag(self, model: MathImag):
-        return [('IMAG',)]
+        if not _is_constant_math(model):
+            return [('CONST', model)]
+        return [('CONST', 1j)]
     
     def map_MathAdd(self, model: MathAdd):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('ADD', )]
         return instructions
     
     def map_MathSub(self, model: MathSub):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('SUB', )]
         return instructions
 
     def map_MathMul(self, model: MathMul):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('MUL', )]
         return instructions
     
     def map_OperatorMul(self, model: OperatorMul):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.op1) + self(model.op2) + [('MUL', )]
         return instructions
     
     def map_OperatorAdd(self, model: OperatorAdd):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('ADD', )]
         return instructions
     
     def map_OperatorSub(self, model: OperatorSub):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('SUB', )]
         return instructions
 
     def map_MathDiv(self, model: MathDiv):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('DIV', )]
         return instructions
     
     def map_MathPow(self, model: MathPow):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.expr1) + self(model.expr2) + [('POW', )]
         return instructions
     
     def map_MathVar(self, model: MathVar):
-        return [('GLOBAL', model.name)]
+        return [('CONST', model)]
     
     def map_MathFunc(self, model: MathFunc):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         if isinstance(model.expr, list):
             instructions = []
             for expr in model.expr:
@@ -151,6 +196,8 @@ class QutipBackendInstructions(RewriteRule):
         return [('CONST', qt.destroy(self._fock_cutoff))]
 
     def map_OperatorKron(self, model: OperatorKron):
+        if not _is_constant_math(model):
+            return [('CONST', model)]
         instructions = self(model.op1) + self(model.op2) + [('KRON', )]
         return instructions
     
