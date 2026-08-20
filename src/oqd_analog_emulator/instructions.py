@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import qutip as qt
-from oqd_compiler_infrastructure import RewriteRule
+from oqd_compiler_infrastructure import RewriteRule, TypeReflectBaseModel
 from oqd_core.interface.analog.expr import (
     Access,
     AnalogList,
@@ -53,16 +53,64 @@ from oqd_core.interface.analog.expr import (
     PauliY,
     PauliZ,
     QuantumRegister,
+    Identifier,
 )
 from oqd_core.interface.analog.statement import Declaration
 
+from pydantic import BaseModel, BeforeValidator, ConfigDict, field_validator
+from enum import Enum
+from typing import List, Annotated, Any
 
+class ListTerminators(Enum):
+    LISTSTART = 0
+    LISTEND = 1
+
+class ALIAS(BaseModel):
+    target: Identifier
+    
+class OpCode(Enum):
+    GLOBAL: 0
+    LOAD: 1
+    EXTRACT: 2
+    
+    @property
+    def num_args(self):
+        match self:
+            case OpCode.EXTRACT:
+                return 2
+            case _ if self in [OpCode.LOAD, OpCode.GLOBAL]:
+                return 1
+            case _:
+                return 0
+
+
+class QutipBackendInstruction(TypeReflectBaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    opcode: OpCode
+    args: List[Any]
+    
+    @field_validator('args')
+    @classmethod
+    def validate_args_num(cls, value):
+        if value.opcode.num_args != len(value.args):
+            raise ValueError(...)
+    
+    @classmethod
+    def cast(value):
+        return QutipBackendInstruction(opcode = value[0], args = list(value[1:]))
+
+CastInstruction = Annotated[QutipBackendInstruction, BeforeValidator(QutipBackendInstruction.cast)]
+
+class QutipBackendInstructions(TypeReflectBaseModel):
+    instructions: List[QutipBackendInstruction]
+
+    def __add__(self, other):
+        return QutipBackendInstructions(instructions = self.instructions + other.instructions)
+    
 def _is_constant_math(model) -> bool:
-    if isinstance(model, (MathNum, MathImag)):
+    if isinstance(model, (Access, MathNum, MathImag)):
         return True
     if isinstance(model, MathVar):
-        return False
-    if isinstance(model, Access):
         return False
     if isinstance(model, MathFunc):
         arg = model.expr
@@ -76,7 +124,7 @@ def _is_constant_math(model) -> bool:
     return True
 
 
-class QutipBackendInstructions(RewriteRule):
+class QutipBackendInstructionsCodegen(RewriteRule):
     def __init__(self, fock_cutoff: int = 4):
         super().__init__()
         self._fock_cutoff = fock_cutoff
@@ -85,8 +133,6 @@ class QutipBackendInstructions(RewriteRule):
         return [('LOAD', model.name)]
     
     def map_Declaration(self, model: Declaration):
-        # print(model.name)
-        # print(model.value)
         if not _is_constant_math(model):
             return [('CONST', model)]
         elif isinstance(model.value, AnalogList):
@@ -95,8 +141,8 @@ class QutipBackendInstructions(RewriteRule):
             return self.map_QuantumRegister(model.value, model.name)
         elif isinstance(model.value, ModeRegister):
             return self.map_ModeRegister(model.value, model.name)
-        # elif isinstance(model.value, Extract):
-        #     return [('DEC_EX', model.name, model.value.access.name, model.value.index)]
+        if isinstance(model.value, Access):
+            return [('GLOBAL', model.name), ('CONST', ALIAS(model.value)), ('STORE', model.name)] 
         else:
             instructions = [('GLOBAL', model.name)] + self(model.value) + [('STORE', model.name)]
             return instructions
@@ -248,16 +294,19 @@ class QutipBackendInstructions(RewriteRule):
     
     def map_AnalogList(self, model: AnalogList, name: str):
         instructions = [('GLOBAL', name)]
-        for value in model.values:
+        instructions += [('CONST', ListTerminators.LISTEND)]
+        for i in list(range(len(model.values)-1, -1, -1)):
+            value = model.values[i]
             instructions += self(value)
-        instructions += [('LIST', name)]
+        instructions += [('CONST', ListTerminators.LISTSTART)]
+        instructions += [('STORE', name)]
         return instructions
     
     def map_Extract(self, model: Extract):
         return [('EXTRACT', model.access.name, model.index)]
     
     def map_Evolve(self, model: Evolve):
-        instructions = self(model.hamiltonian) + self(model.duration) + self(model.targets) + [('EVOLVE', )]
+        instructions =  self(model.targets) + self(model.duration) + self(model.hamiltonian) + [('EVOLVE', )]
         return instructions
         
     def map_Initialize(self, model: Initialize):

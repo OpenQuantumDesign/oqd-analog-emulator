@@ -19,34 +19,41 @@ import qutip as qt
 import math
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
-from oqd_analog_emulator.instructions import QutipBackendInstructions
-from oqd_analog_emulator.passes import QutipBackendCompiler
+from oqd_analog_emulator.instructions import QutipBackendInstructionsCodegen, ALIAS, ListTerminators
+from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 from oqd_compiler_infrastructure import Post
+from pydantic import BaseModel
 
+class RegisterObject(BaseModel):
+    name: str
+    index: int
+    
+    def __hash__(self):
+        return hash((self.name, self.index))
 
 class QubitObject:
-    name: tuple[str, int]
+    register: RegisterObject
     time: int
     state: object
     
 
 class QubitRegister:
-    qubits: list[tuple[str, int]] = []
+    register: list[RegisterObject] = []
     time: int
     state: object
     
     @property
     def n(self):
-        return len(self.qubits)
+        return len(self.register)
 
 
 class ModeObject:
-    name: tuple[str, int]
+    register: RegisterObject
     time: int
     state: object
-    
 
-class Interpreter:
+
+class QutipVirtualMachine:
     def __init__(self, n_shots = 10, fock_cutoff = 4, dt = 0.1):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
@@ -60,39 +67,59 @@ class Interpreter:
     def get_store(self):
         return self.store
     
+    def get_targets(self, targets):
+        if not isinstance(targets, list):
+            targets = [targets]
+        out = []
+        for register in targets:
+            if isinstance(register, ListTerminators):
+                continue
+            out.append(self.registers[register])
+        return out
+    
     def push(self, item):
-        self.stack.append(item)
+        if item == []:
+            self.stack.append(ListTerminators.LISTEND)
+            self.stack.append(ListTerminators.LISTSTART)
+        elif isinstance(item, list):
+            if item[-1] != ListTerminators.LISTEND:
+                self.stack.append(ListTerminators.LISTEND)
+            for i in list(range(len(item)-1, 0, -1)):
+                self.stack.append(item[i])
+            self.stack.append(ListTerminators.LISTSTART)
+        else:
+            self.stack.append(item)
     
     def pop(self):
         if self.stack == []: return None
-        return self.stack.pop()
+        out = self.peek()
+        if out == ListTerminators.LISTSTART:
+            out = []
+            while True:
+                curr = self.stack.pop()
+                out.append(curr)
+                if curr == ListTerminators.LISTEND:
+                    break
+                
+        else:
+            self.stack.pop()
+        return out
     
     def peek(self):
         if self.stack:
             return self.stack[-1]
         return None
     
-    def get_register(self, name):
-        if isinstance(name, (QubitObject, QubitRegister, ModeObject)):
-            return name
-        curr = name
-        while not isinstance(curr, (QubitObject, QubitRegister, ModeObject)):
-            # print(curr)
-            if curr in self.store.keys():
-                curr = self.store[curr]
-            if curr in self.registers.keys():
-                curr = self.registers[curr]
-        return curr
-    
     def run(self, code):
         self.pc = 0
         while self.pc < len(code):
+            # print(code)
             op, *opargs = code[self.pc]
             getattr(self, f'run_{op}')(*opargs)
             self.pc += 1
     
     def run_GLOBAL(self, name):
-        if name not in self.store.keys():
+        if name not in self.store:
             self.store[name] = None
 
     def run_CONST(self, value):
@@ -102,10 +129,15 @@ class Interpreter:
         self.store[name] = self.pop()
 
     def run_LOAD(self, name):
-        if name in self.store.keys():
-            self.push(self.store[name])
-        elif name in self.registers.keys():
+        if isinstance(name, ALIAS):
+            self.run_LOAD(name.target)
+        if isinstance(name, RegisterObject):
             self.push(self.registers[name])
+        if name in self.store:
+            item = self.store[name]
+            # if isinstance(item, list):
+            #     self.push(ListTerminators.LISTSTART)
+            self.push(item)
         else:
             raise ValueError
         
@@ -189,148 +221,125 @@ class Interpreter:
         lhs = self.pop()
         self.push(lhs >= rhs)
     
-    def run_EVOLVE(self):
-        operands = []
-        elem = self.pop()
-        while elem:
-            operands += [elem]
-            elem = self.pop()
-        
-        targets = operands[:-2]
-        duration = operands[-2]
-        hamiltonian = operands[-1]
-        output = []
-        # Unpacks one layer of nested lists
-        for target in targets:
-            if isinstance(target, list):
-                for elem in target:
-                    output.append(elem)
-            else:
-                output.append(target)
-        targets = output
-        self._evolve(hamiltonian, duration, targets)
-        
-    
     def run_INIT(self):
-        targets = []
-        elem = self.pop()
-        while elem:
-            if isinstance(elem, list):
-                for val in elem:
-                    targets.append(val)
-            else:
-                targets += [elem]
-            elem = self.pop()
-        self._initialize(targets)
+        targets = self.pop()
+        targets = self.get_targets(targets)
+        for target in targets:
+            if isinstance(target, QubitObject):
+                target.state = qt.Qobj([1, 0])
+            elif isinstance(target, ModeObject):
+                target.state = qt.Qobj([self._fock_cutoff, 0])
+            target.time = self.GLOBAL_T
+        self.push([])
     
     def run_MEASURE(self):
-        targets = []
-        elem = self.pop()
-        while elem:
-            targets += [elem]
-            elem = self.pop()
-        self._measure(targets)
+        targets = self.pop()
+        targets = self.get_targets(targets)
+        counts = {}
+        ind = 0
+        for target in targets:
+            probs = np.power(np.abs(target.state.full()), 2).squeeze()
+            n_shots = self._n_shots
+            inds = np.random.choice(len(probs), size=n_shots, p=probs)
+            # print(inds)
+            h_dims = 2
+            if isinstance(target, ModeObject):
+                h_dims = self._fock_cutoff
+            opts = len(targets) * [list(range(h_dims))]
+            bases = list(itertools.product(*opts))
+            # print(bases)
+            shots = np.array([bases[ind] for ind in inds])
+            bitstrings = ["".join(map(str, shot)) for shot in shots]
+            counts[ind] = {
+                bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
+            }
+            ind += 1
+        
+        self.push(counts)
+        # self.push([])
     
-    def run_LIST(self, name):
-        elem = self.pop()
-        lst = []
-        while elem:
-            lst += [elem]
-            elem = self.pop()
-        lst.reverse()
-        self.store[name] = []
-        for n in range(len(lst)):
-            self.store[(name, n)] = lst[n]
-            self.store[name].append((name, n))
     
     def run_EXTRACT(self, name, index):
-        # self.push(self.store[(name, index)])
-        # self.run_LOAD((name, index))
-        self.push((name, index))
-    
-    # def run_DEC_EX(self, name, extract, index):
-    #     self.registers[name] = [(extract, index)]
+        if isinstance(name, ALIAS):
+            self.push(RegisterObject(name=name.target, index=index))
+        else:
+            self.push(RegisterObject(name=name, index=index))
+
     
     def run_QREG(self, name, size):
-        self.store[name] = []
+        self.store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
             obj = QubitObject()
-            obj.name = (name, n)
-            obj.state = []
+            obj.register = RegisterObject(name=name, index=n)
             obj.time = self.GLOBAL_T
-            self.registers[(name, n)] = obj
-            self.store[name].append((name, n))
+            obj.state = []
+            self.registers[obj.register] = obj
+            self.store[name].append(obj.register)
+        self.store[name].append(ListTerminators.LISTEND)
         
     
     def run_MREG(self, name, size):
-        self.store[name] = []
+        self.store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
             obj = ModeObject()
-            obj.name = (name, n)
-            obj.state = []
+            obj.register = RegisterObject(name=name, index=n)
             obj.time = self.GLOBAL_T
-            self.registers[(name, n)] = obj
-            self.store[name].append((name, n))
+            obj.state = []
+            self.registers[obj.register] = obj
+            self.store[name].append(obj.register)
+        self.store[name].append(ListTerminators.LISTEND)
     
     # Pads the hamiltonian with additional dimensions if required and reorders states
     def _pad(self, hamiltonian, targets):
         states = []
-        dimensions = 0
+        state_dims = 0
         for target in targets:
             states += [target.state]
             # print(f"target type: " + str(type(target)))
             if isinstance(target, QubitRegister):
                 # print(target.qubits)
-                dimensions += target.n
+                state_dims += target.n
             else:
                 # print(target.name)
-                dimensions += 1
-        dims = np.squeeze(np.array(hamiltonian.dims)).tolist()
+                state_dims += 1
+        h_dims = hamiltonian.dims[0]
+        # print("state_dims are:")
+        # print(state_dims)
+        # print("h dims are:")
+        # print(h_dims)
+        diff = state_dims - len(h_dims)
         
-        # print(dimensions)
-        diff = dimensions - len(dims)
-        # print(dims)
         for _ in list(range(diff)):
-            # dims[0] *= dims[1]
+            # h_dims[0] *= h_dims[1]
             hamiltonian = qt.tensor(qt.qeye(2), hamiltonian)
-        print("dimensions are:")
-        print(dims)
-        print("Hamiltonian: ")
-        print(hamiltonian)
-        
-        # hamiltonian = np.squeeze(np.array(hamiltonian))
-        # print("Hamiltonian: ")
-        # print(hamiltonian)
         
         states = qt.tensor(states)
-        print("state before: ")
-        print(states)
         
-        # states = states.data_as(format="ndarray")
-        # states = np.reshape(states, dims)
-        # print("state reshape: ")
-        # print(states)
-        # states = qt.tensor(states)
-        # states = qt.Qobj(states)
-        
-        
+        # print("Hamiltonian: ")
         # print(hamiltonian)
-        # print("state after: ")
+        # print("state: ")
         # print(states)
         
         return states, hamiltonian
     
-    def _evolve(self, hamiltonian, duration, targets):
+    def run_EVOLVE(self):
+
+        hamiltonian = self.pop()
+        # print(f"hamiltonian: " + str(hamiltonian))
+        duration = self.pop()
+        # print(f"duration: " + str(duration))
+        targets = self.pop()
+        # print(f"targets: " + str(targets))
+        targets = self.get_targets(targets)
         
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
         results = {}
         
         if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
-            compiler_pass = Post(QutipBackendCompiler(fock_cutoff=self._fock_cutoff, current_time=self.GLOBAL_T))
+            compiler_pass = Post(QutipQobjEvoGenerator(fock_cutoff=self._fock_cutoff, current_time=self.GLOBAL_T))
             hamiltonian = compiler_pass(hamiltonian)
-        #   print(f"hamiltonian after pass: " + str(hamiltonian))
-        for ind, target in enumerate(targets):
-            targets[ind] = self.get_register(target)
+            # print(f"hamiltonian after pass: " + str(hamiltonian))
+        
         states, hamiltonian = self._pad(hamiltonian, targets)
             
         start_runtime = time.time()
@@ -354,82 +363,49 @@ class Interpreter:
         # target.state = result_qobj.final_state
         results = result_qobj.final_state.full().squeeze()
     
-        register = QubitRegister()
-        register.time = self.GLOBAL_T
-        register.state = result_qobj.final_state
+        qreg = QubitRegister()
+        qreg.time = self.GLOBAL_T
+        qreg.state = result_qobj.final_state
         for target in targets:
             if isinstance(target, QubitObject):
-                if target.name not in register.qubits:
-                    register.qubits.append(target.name)
+                if target.register not in qreg.register:
+                    qreg.register.append(target.register)
             elif isinstance(target, QubitRegister):
-                for qubit in target.qubits:
-                    if qubit not in register.qubits:
-                        register.qubits.append(qubit)
+                for register in target.register:
+                    if register not in qreg.register:
+                        qreg.register.append(register)
         
         for target in targets:
             if isinstance(target, QubitObject):
-                self.registers[target.name] = register
+                self.registers[target.register] = qreg
             elif isinstance(target, QubitRegister):
-                for qubit in target.qubits:
-                    self.registers[qubit] = register
+                for register in target.register:
+                    self.registers[register] = qreg
         
-        self.push(results)
-    
-    def _measure(self, targets):
-        counts = {}
-        ind = 0
-        for target in targets:
-            target = self.get_register(target)
-            probs = np.power(np.abs(target.state.full()), 2).squeeze()
-            n_shots = self._n_shots
-            inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            # print(inds)
-            dims = 2
-            if isinstance(target, ModeObject):
-                dims = self._fock_cutoff
-            opts = len(targets) * [list(range(dims))]
-            bases = list(itertools.product(*opts))
-            # print(bases)
-            shots = np.array([bases[ind] for ind in inds])
-            bitstrings = ["".join(map(str, shot)) for shot in shots]
-            counts[ind] = {
-                bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
-            }
-            ind += 1
+        self.push([])
         
-        self.push(counts)
-
     
-    def _initialize(self, targets):
-        # dims = len(targets) * [2]
-        # print(dims)
 
-        # self.results.times.append(0.0)
-        for target in targets:
-            # print(target)
-            target = self.get_register(target)
-            if isinstance(target, QubitObject):
-                target.state = qt.Qobj([1, 0])
-            elif isinstance(target, ModeObject):
-                target.state = qt.Qobj([self._fock_cutoff, 0])
-            target.time = self.GLOBAL_T
-
-
-    
-class IRGenerator:
-    def __init__(self, graph: ControlFlowGraph, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1):
+class QutipInterpreter:
+    def __init__(self, graph: ControlFlowGraph, codegen = None, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1):
         self.graph = graph
         self.nodes = list(graph.nodes())
-        self.interpreter = Interpreter(n_shots, fock_cutoff, dt)
-        self._fock_cutoff = fock_cutoff
+        self.VM = QutipVirtualMachine(n_shots, fock_cutoff, dt)
+        self.INSTRUCTIONS = []
+        self.codegen = codegen
+        if codegen is None:
+            self.codegen = QutipBackendInstructionsCodegen(fock_cutoff=fock_cutoff)
+        
         
     def get_block(self, node: int = 0):
         return self.graph.blocks[node]
 
     def evaluate(self, stmt):
-        instructions = QutipBackendInstructions(fock_cutoff=self._fock_cutoff)(stmt)
+        instructions = self.codegen(stmt)
         # print(instructions)
-        self.interpreter.run(instructions)
+        self.INSTRUCTIONS.append(instructions)
+        self.VM.run(instructions)
+        
     
     def run(self):
         node = 1
@@ -440,7 +416,7 @@ class IRGenerator:
             
             if (current_block.kind == "branch"):
                 self.evaluate(stmt)
-                cond = self.interpreter.pop()
+                cond = self.VM.pop()
                 if cond:
                     node = next(key for key, val in current_block.edge_labels.items() if val == 'true')
                 else:
@@ -455,7 +431,29 @@ class IRGenerator:
                     continue
             # print(node)
             current_block = self.get_block(node)
+        
+        return self.get_state(self.VM.pop())
             
     def status(self):
-        return self.interpreter.get_store()
+        return self.VM.get_store()
+    
+    def get_state(self, return_values):
+        if not isinstance(return_values, list):
+            return return_values
+        out = []
+        for value in return_values:
+            # isinstance
+            if value in self.VM.registers:
+                out.append((value, self.VM.registers[value]))
+            elif isinstance(value, list):
+                out.append(self.get_state(value))
+            else: out.append(value)
+        return out
+        
+    def get_instructions(self):
+        return self.INSTRUCTIONS
+                
+            
+            
+        
     

@@ -12,21 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from oqd_compiler_infrastructure import Post, Pre
-from oqd_core.interface.analog.circuit import AnalogCircuit
 import qutip as qt
 import numpy as np
 from oqd_compiler_infrastructure import ConversionRule
-from oqd_analog_emulator.rewrite import (
-    QutipBackendCompiler,
-    QutipMetricConversion,
-)
+
 from oqd_dataschema import Datastore, GroupBase, Dataset
 
 ########################################################################################
 
 
-class QutipBackendCompiler(ConversionRule):
+class QutipQobjEvoGenerator(ConversionRule):
     """
     This is a ConversionRule which compiles analog layer objects to QutipExperiment objects
 
