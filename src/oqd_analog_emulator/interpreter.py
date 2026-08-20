@@ -67,15 +67,27 @@ class QutipVirtualMachine:
     def get_store(self):
         return self.store
     
-    def get_targets(self, targets):
-        if not isinstance(targets, list):
-            targets = [targets]
+    def get_args(self, num: int):
         out = []
-        for register in targets:
-            if isinstance(register, ListTerminators):
-                continue
-            out.append(self.registers[register])
-        return out
+        for _ in list(range(num)):
+            item = self.pop()
+            if isinstance(item, RegisterObject):
+                out.append([self.registers[item]])
+            elif isinstance(item, list):
+                argument = []
+                for elem in item:
+                    if isinstance(elem, ListTerminators):
+                        continue
+                    elif isinstance(elem, RegisterObject):
+                        argument.append(self.registers[elem])
+                    else:
+                        argument.append(elem)
+                out.append(argument)
+            else:
+                out.append(item)
+        # print(f"OUT ARGS: " + str(out))
+        return out   
+            
     
     def push(self, item):
         if item == []:
@@ -135,8 +147,6 @@ class QutipVirtualMachine:
             self.push(self.registers[name])
         if name in self.store:
             item = self.store[name]
-            # if isinstance(item, list):
-            #     self.push(ListTerminators.LISTSTART)
             self.push(item)
         else:
             raise ValueError
@@ -151,15 +161,16 @@ class QutipVirtualMachine:
             
         match func:
             case "abs":
-                output = abs(self.pop())
+                output = abs(self.get_args(1)[0])
             case "heaviside":
-                output = np.heaviside(self.pop(), 0)
+                output = np.heaviside(self.get_args(1)[0], 0)
             case "atan2":
-                x = self.pop()
-                y = self.pop()
+                args = self.get_args(2)
+                x = args[0]
+                y = args[1]
                 output = operation(y, x)
             case _:
-                output = operation(self.pop())
+                output = operation(self.get_args(1)[0])
         self.push(output)
 
     def run_ADD(self):
@@ -222,8 +233,7 @@ class QutipVirtualMachine:
         self.push(lhs >= rhs)
     
     def run_INIT(self):
-        targets = self.pop()
-        targets = self.get_targets(targets)
+        targets = self.get_args(1)[0]
         for target in targets:
             if isinstance(target, QubitObject):
                 target.state = qt.Qobj([1, 0])
@@ -233,8 +243,7 @@ class QutipVirtualMachine:
         self.push([])
     
     def run_MEASURE(self):
-        targets = self.pop()
-        targets = self.get_targets(targets)
+        targets = self.get_args(1)[0]
         counts = {}
         ind = 0
         for target in targets:
@@ -323,14 +332,13 @@ class QutipVirtualMachine:
         return states, hamiltonian
     
     def run_EVOLVE(self):
-
-        hamiltonian = self.pop()
+        args = self.get_args(3)
+        hamiltonian = args[0]
         # print(f"hamiltonian: " + str(hamiltonian))
-        duration = self.pop()
+        duration = args[1]
         # print(f"duration: " + str(duration))
-        targets = self.pop()
+        targets = args[2]
         # print(f"targets: " + str(targets))
-        targets = self.get_targets(targets)
         
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
         results = {}
