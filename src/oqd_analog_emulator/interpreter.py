@@ -19,7 +19,7 @@ import qutip as qt
 import math
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
-from oqd_analog_emulator.instructions import QutipBackendInstructionsCodegen, ALIAS, ListTerminators
+from oqd_analog_emulator.instructions import QutipBackendInstructionsCodegen, ALIAS, ListTerminators, QutipBackendInstructions
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 from oqd_compiler_infrastructure import Post
 from pydantic import BaseModel
@@ -90,10 +90,11 @@ class QutipVirtualMachine:
             
     
     def push(self, item):
-        if item == []:
-            self.stack.append(ListTerminators.LISTEND)
-            self.stack.append(ListTerminators.LISTSTART)
-        elif isinstance(item, list):
+        if isinstance(item, list):
+            if len(item) == 0:
+                self.stack.append(ListTerminators.LISTEND)
+                self.stack.append(ListTerminators.LISTSTART)
+                return
             if item[-1] != ListTerminators.LISTEND:
                 self.stack.append(ListTerminators.LISTEND)
             for i in list(range(len(item)-1, 0, -1)):
@@ -122,13 +123,13 @@ class QutipVirtualMachine:
             return self.stack[-1]
         return None
     
-    def run(self, code):
-        self.pc = 0
-        while self.pc < len(code):
-            # print(code)
-            op, *opargs = code[self.pc]
-            getattr(self, f'run_{op}')(*opargs)
-            self.pc += 1
+    def run(self, instructions: QutipBackendInstructions):
+        
+        for instruction in instructions.instructions:
+            opcode = instruction.opcode.name
+            args = instruction.args
+            getattr(self, f'run_{opcode}')(*args)
+            
     
     def run_GLOBAL(self, name):
         if name not in self.store:
@@ -333,12 +334,12 @@ class QutipVirtualMachine:
     
     def run_EVOLVE(self):
         args = self.get_args(3)
-        hamiltonian = args[0]
-        # print(f"hamiltonian: " + str(hamiltonian))
+        targets = args[0]
+        # print(f"targets: " + str(targets))
         duration = args[1]
         # print(f"duration: " + str(duration))
-        targets = args[2]
-        # print(f"targets: " + str(targets))
+        hamiltonian = args[2]
+        # print(f"hamiltonian: " + str(hamiltonian))
         
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
         results = {}
