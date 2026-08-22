@@ -53,7 +53,12 @@ class ModeObject:
     state: object
 
 
-class QutipVirtualMachine:
+QutipVMNULL = [ListTerminators.LISTSTART,ListTerminators.LISTEND]
+
+def recursive_filter(l, cond):
+    return list(map(lambda x: recursive_filter(x) if isinstance(x,list) else x, filter(cond, l)))
+
+class QutipVM:
     def __init__(self, n_shots = 10, fock_cutoff = 4, dt = 0.1):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
@@ -67,64 +72,53 @@ class QutipVirtualMachine:
     def get_store(self):
         return self.store
     
-    def get_args(self, num: int):
+    def get_state(self, return_values,*, verbose=False):
+        if not isinstance(return_values, list):
+            return return_values
+        out = []
+        for value in return_values:
+            if isinstance(value, list):
+                out.append(self.get_state(value,verbose=verbose))
+            elif isinstance(value, RegisterObject):
+                out.append((value,self.registers[value]) if verbose else self.registers[value])
+            else: out.append(value)
+        return out
+    
+    def get_args(self, num: int,):
         out = []
         for _ in list(range(num)):
             item = self.pop()
             if isinstance(item, RegisterObject):
                 out.append([self.registers[item]])
             elif isinstance(item, list):
-                argument = []
-                for elem in item:
-                    if isinstance(elem, ListTerminators):
-                        continue
-                    elif isinstance(elem, RegisterObject):
-                        argument.append(self.registers[elem])
-                    else:
-                        argument.append(elem)
-                out.append(argument)
+                out.append(recursive_filter(item,lambda x: not isinstance(x, ListTerminators)))
             else:
                 out.append(item)
-        # print(f"OUT ARGS: " + str(out))
-        return out   
+        print(self.get_state(out))
+        return self.get_state(out)
             
-    
     def push(self, item):
         if isinstance(item, list):
-            if len(item) == 0:
-                self.stack.append(ListTerminators.LISTEND)
-                self.stack.append(ListTerminators.LISTSTART)
-                return
-            if item[-1] != ListTerminators.LISTEND:
-                self.stack.append(ListTerminators.LISTEND)
-            for i in list(range(len(item)-1, 0, -1)):
-                self.stack.append(item[i])
-            self.stack.append(ListTerminators.LISTSTART)
+            self.stack.extend(reversed(item))
         else:
             self.stack.append(item)
     
     def pop(self):
-        if self.stack == []: return None
-        out = self.peek()
-        if out == ListTerminators.LISTSTART:
-            out = []
-            while True:
-                curr = self.stack.pop()
-                out.append(curr)
-                if curr == ListTerminators.LISTEND:
-                    break
-                
-        else:
-            self.stack.pop()
+        if not self.stack:
+            raise ValueError
+        
+        if self.stack[-1] is not ListTerminators.LISTSTART:
+            return self.stack.pop()
+    
+        out = [self.stack.pop()]
+        while True:
+            curr = self.pop()
+            out.append(curr)
+            if curr is ListTerminators.LISTEND:
+                break
         return out
     
-    def peek(self):
-        if self.stack:
-            return self.stack[-1]
-        return None
-    
     def run(self, instructions: QutipBackendInstructions):
-        
         for instruction in instructions.instructions:
             opcode = instruction.opcode.name
             args = instruction.args
@@ -241,7 +235,7 @@ class QutipVirtualMachine:
             elif isinstance(target, ModeObject):
                 target.state = qt.Qobj([self._fock_cutoff, 0])
             target.time = self.GLOBAL_T
-        self.push([])
+        self.push(QutipVMNULL)
     
     def run_MEASURE(self):
         targets = self.get_args(1)[0]
@@ -257,7 +251,6 @@ class QutipVirtualMachine:
                 h_dims = self._fock_cutoff
             opts = len(targets) * [list(range(h_dims))]
             bases = list(itertools.product(*opts))
-            # print(bases)
             shots = np.array([bases[ind] for ind in inds])
             bitstrings = ["".join(map(str, shot)) for shot in shots]
             counts[ind] = {
@@ -266,7 +259,6 @@ class QutipVirtualMachine:
             ind += 1
         
         self.push(counts)
-        # self.push([])
     
     
     def run_EXTRACT(self, name, index):
@@ -391,7 +383,7 @@ class QutipVirtualMachine:
                 for register in target.register:
                     self.registers[register] = qreg
         
-        self.push([])
+        self.push(QutipVMNULL)
         
     
 
@@ -399,7 +391,7 @@ class QutipInterpreter:
     def __init__(self, graph: ControlFlowGraph, codegen = None, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1):
         self.graph = graph
         self.nodes = list(graph.nodes())
-        self.VM = QutipVirtualMachine(n_shots, fock_cutoff, dt)
+        self.vm = QutipVM(n_shots, fock_cutoff, dt)
         self.INSTRUCTIONS = []
         self.codegen = codegen
         if codegen is None:
@@ -413,7 +405,7 @@ class QutipInterpreter:
         instructions = self.codegen(stmt)
         # print(instructions)
         self.INSTRUCTIONS.append(instructions)
-        self.VM.run(instructions)
+        self.vm.run(instructions)
         
     
     def run(self):
@@ -425,7 +417,7 @@ class QutipInterpreter:
             
             if (current_block.kind == "branch"):
                 self.evaluate(stmt)
-                cond = self.VM.pop()
+                cond = self.vm.pop()
                 if cond:
                     node = next(key for key, val in current_block.edge_labels.items() if val == 'true')
                 else:
@@ -441,23 +433,13 @@ class QutipInterpreter:
             # print(node)
             current_block = self.get_block(node)
         
-        return self.get_state(self.VM.pop())
+        return self.get_state(self.vm.pop())
             
     def status(self):
-        return self.VM.get_store()
+        return self.vm.get_store()
     
     def get_state(self, return_values):
-        if not isinstance(return_values, list):
-            return return_values
-        out = []
-        for value in return_values:
-            # isinstance
-            if value in self.VM.registers:
-                out.append((value, self.VM.registers[value]))
-            elif isinstance(value, list):
-                out.append(self.get_state(value))
-            else: out.append(value)
-        return out
+        return self.vm.get_state(return_values, verbose=True)
         
     def get_instructions(self):
         return self.INSTRUCTIONS

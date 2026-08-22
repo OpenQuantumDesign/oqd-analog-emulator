@@ -164,8 +164,9 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         if not _is_constant_math(model):
             instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
             return QutipBackendInstructions(instructions=[instruction])
-        if isinstance(model.value, AnalogList):
-            return self.map_AnalogList(model.value, model.name)
+        # if isinstance(model.value, AnalogList):
+        #     instruction = QutipBackendInstruction(opcode=OpCode.GLOBAL, args=[model.name])
+        #     return self.map_AnalogList(model.value, model.name)
         if isinstance(model.value, QuantumRegister):
             return self.map_QuantumRegister(model.value, model.name)
         if isinstance(model.value, ModeRegister):
@@ -378,15 +379,13 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         instruction = QutipBackendInstruction(opcode=OpCode.MREG, args=[name, model.size])
         return QutipBackendInstructions(instructions=[instruction])
     
-    def map_AnalogList(self, model: AnalogList, name: str):
+    def map_AnalogList(self, model: AnalogList):
         instructions = QutipBackendInstructions()
-        instructions += QutipBackendInstruction(opcode=OpCode.GLOBAL, args=[name])
         instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[ListTerminators.LISTEND])
         for i in list(range(len(model.values)-1, -1, -1)):
             value = model.values[i]
             instructions += self(value)
         instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[ListTerminators.LISTSTART])
-        instructions += QutipBackendInstruction(opcode=OpCode.STORE, args=[name])
         return instructions
     
     def map_Extract(self, model: Extract):
