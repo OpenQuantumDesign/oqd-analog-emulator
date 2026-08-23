@@ -59,7 +59,7 @@ include = ["oqd_analog_emulator*"]
 
 
 [tool.uv.sources]
-oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", branch = "backend" }
+oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", branch = "v1.0" }
 oqd-analog-emulator = { workspace = true }
 oqd-compiler-infrastructure = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" }
 oqd-dataschema = { git = "https://github.com/openquantumdesign/oqd-dataschema"}

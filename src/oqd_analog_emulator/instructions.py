@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
+from typing import Any
+
 import qutip as qt
 from oqd_compiler_infrastructure import RewriteRule, TypeReflectBaseModel
 from oqd_core.interface.analog.expr import (
@@ -31,17 +34,18 @@ from oqd_core.interface.analog.expr import (
     Creation,
     Evolve,
     Extract,
+    Identifier,
     Identity,
     Initialize,
     MathAdd,
     MathDiv,
+    MathFunc,
+    MathImag,
     MathMul,
     MathNum,
-    MathImag,
     MathPow,
     MathSub,
     MathVar,
-    MathFunc,
     Measure,
     ModeRegister,
     OperatorAdd,
@@ -53,13 +57,14 @@ from oqd_core.interface.analog.expr import (
     PauliY,
     PauliZ,
     QuantumRegister,
-    Identifier,
 )
 from oqd_core.interface.analog.statement import Declaration
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    model_validator,
+)
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, field_validator, model_validator
-from enum import Enum
-from typing import List, Annotated, Any
 
 class ListTerminators(Enum):
     LISTSTART = 0
@@ -111,7 +116,7 @@ class OpCode(Enum):
 class QutipBackendInstruction(TypeReflectBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     opcode: OpCode
-    args: List[Any] = []
+    args: list[Any] = []
     
     @model_validator(mode='after')
     def validate_args_num(self):
@@ -121,7 +126,7 @@ class QutipBackendInstruction(TypeReflectBaseModel):
         return self
     
 class QutipBackendInstructions(TypeReflectBaseModel):
-    instructions: List[QutipBackendInstruction] = []
+    instructions: list[QutipBackendInstruction] = []
 
     def __add__(self, other):
         if isinstance(other, QutipBackendInstruction):
@@ -280,10 +285,10 @@ class QutipBackendInstructionsCodegen(RewriteRule):
             instructions = QutipBackendInstructions()
             for expr in model.expr:
                 instructions += self(expr)
-            return instructions
-        
+        else:
+            instructions = self(model.expr)
         instr1 = QutipBackendInstruction(opcode=OpCode.FUNC, args=[model.func])
-        instructions = self(model.expr) + instr1
+        instructions +=  instr1
         return instructions
     
     def map_PauliI(self, model: PauliI):

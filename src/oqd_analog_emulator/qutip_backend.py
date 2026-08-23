@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
+from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
+from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
 from oqd_core.backend.base import BackendBase
 from oqd_core.backend.program import AnalogProgram
-from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
-from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
-from oqd_core.frontend.analog import parse_analog
-from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
 from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
+from oqd_core.frontend.analog import parse_analog
+
 from oqd_analog_emulator.interpreter import QutipInterpreter
 
 ########################################################################################
@@ -67,7 +68,7 @@ class QutipBackend(BackendBase):
             program = self.compile(program)
 
         if not isinstance(program, AnalogProgram):
-            raise ValueError("Provide valid analog code or AnalogProgram.")
+            raise TypeError("Provide valid analog code or AnalogProgram.")
             
         cfg = program.cfg
 

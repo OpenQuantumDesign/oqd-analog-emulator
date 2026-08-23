@@ -12,17 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import time
 import itertools
-import qutip as qt
 import math
+import time
+
+import numpy as np
+import qutip as qt
+from oqd_compiler_infrastructure import Post
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
-from oqd_analog_emulator.instructions import QutipBackendInstructionsCodegen, ALIAS, ListTerminators, QutipBackendInstructions
-from oqd_analog_emulator.passes import QutipQobjEvoGenerator
-from oqd_compiler_infrastructure import Post
 from pydantic import BaseModel
+
+from oqd_analog_emulator.instructions import (
+    ALIAS,
+    ListTerminators,
+    QutipBackendInstructions,
+    QutipBackendInstructionsCodegen,
+)
+from oqd_analog_emulator.passes import QutipQobjEvoGenerator
+
 
 class RegisterObject(BaseModel):
     name: str
@@ -77,6 +85,8 @@ class QutipVM:
             return return_values
         out = []
         for value in return_values:
+            if isinstance(value, ListTerminators):
+                continue
             if isinstance(value, list):
                 out.append(self.get_state(value,verbose=verbose))
             elif isinstance(value, RegisterObject):
@@ -240,8 +250,7 @@ class QutipVM:
     def run_MEASURE(self):
         targets = self.get_args(1)[0]
         counts = {}
-        ind = 0
-        for target in targets:
+        for ind, target in enumerate(targets):
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
             n_shots = self._n_shots
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
@@ -256,7 +265,6 @@ class QutipVM:
             counts[ind] = {
                 bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
             }
-            ind += 1
         
         self.push(counts)
     
@@ -334,7 +342,7 @@ class QutipVM:
         # print(f"hamiltonian: " + str(hamiltonian))
         
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
-        results = {}
+        # results = {}
         
         if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
             compiler_pass = Post(QutipQobjEvoGenerator(fock_cutoff=self._fock_cutoff, current_time=self.GLOBAL_T))
@@ -362,7 +370,7 @@ class QutipVM:
         #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
             
         # target.state = result_qobj.final_state
-        results = result_qobj.final_state.full().squeeze()
+        # results = result_qobj.final_state.full().squeeze()
     
         qreg = QubitRegister()
         qreg.time = self.GLOBAL_T
@@ -424,7 +432,7 @@ class QutipInterpreter:
                     node = next(key for key, val in current_block.edge_labels.items() if val == 'false')
                 
             if current_block.kind == "stmt":
-                if stmt:
+                if not current_block.edge_labels and stmt:
                     # print(stmt)
                     self.evaluate(stmt)
                 if current_block.succs:
@@ -434,7 +442,7 @@ class QutipInterpreter:
             current_block = self.get_block(node)
         
         stack_top = self.vm.pop()
-        if not stack_top:
+        if stack_top is None:
             return []
         return self.get_state(stack_top)
             
