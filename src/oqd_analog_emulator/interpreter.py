@@ -94,7 +94,7 @@ class QutipVM:
                 out.append(recursive_filter(item,lambda x: not isinstance(x, ListTerminators)))
             else:
                 out.append(item)
-        print(self.get_state(out))
+        # print(self.get_state(out))
         return self.get_state(out)
             
     def push(self, item):
@@ -105,7 +105,7 @@ class QutipVM:
     
     def pop(self):
         if not self.stack:
-            raise ValueError
+            return None
         
         if self.stack[-1] is not ListTerminators.LISTSTART:
             return self.stack.pop()
@@ -433,7 +433,10 @@ class QutipInterpreter:
             # print(node)
             current_block = self.get_block(node)
         
-        return self.get_state(self.vm.pop())
+        stack_top = self.vm.pop()
+        if not stack_top:
+            return []
+        return self.get_state(stack_top)
             
     def status(self):
         return self.vm.get_store()

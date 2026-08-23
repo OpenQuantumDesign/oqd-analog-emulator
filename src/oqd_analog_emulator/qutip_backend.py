@@ -21,8 +21,6 @@ from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
 from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
 from oqd_analog_emulator.interpreter import QutipInterpreter
 
-from typing import Optional
-
 ########################################################################################
 
 __all__ = [
@@ -37,8 +35,8 @@ class QutipBackend(BackendBase):
     Class representing the Qutip backend
     """
     
-    def compile(self, source):
-        circuit = parse_analog(source)
+    def compile(self, program: str):
+        circuit = parse_analog(program)
         cfg = AnalogCFGBuilder().run(circuit)
         checker = AnalogTypeChecker(cfg)
 
@@ -54,32 +52,27 @@ class QutipBackend(BackendBase):
 
     def run(
         self,
-        source: Optional[str] = "",
-        program: Optional[AnalogProgram] = None,
+        program: str | AnalogProgram = None
     ):
         """
         Method to simulate an experiment using the QuTip backend
 
         Args:
-            source (Optional[str]): Run experiment from a valid analog code.
-            program (Optional[AnalogProgram]): Run experiment from a valid AnalogProgram object.
+            program (str | AnalogProgram): Run experiment from valid analog code or AnalogProgram object.
         Returns:
-            Program and Interpreter objects.
-
-        Note:
-            only one of source or program must be provided.
+            Program object, Interpreter object, and the output of the QuTip simulation.
         """
         
-        if source:
-            program = self.compile(source)
-        
-        if not program:
+        if isinstance(program, str):
+            program = self.compile(program)
+
+        if not isinstance(program, AnalogProgram):
             raise ValueError("Provide valid analog code or AnalogProgram.")
             
         cfg = program.cfg
 
         interpreter = QutipInterpreter(graph=cfg) 
-        interpreter.run()
+        output = interpreter.run()
         
-        return program, interpreter
+        return program, interpreter, output
 
