@@ -169,9 +169,6 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         if not _is_constant_math(model):
             instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
             return QutipBackendInstructions(instructions=[instruction])
-        # if isinstance(model.value, AnalogList):
-        #     instruction = QutipBackendInstruction(opcode=OpCode.GLOBAL, args=[model.name])
-        #     return self.map_AnalogList(model.value, model.name)
         if isinstance(model.value, QuantumRegister):
             return self.map_QuantumRegister(model.value, model.name)
         if isinstance(model.value, ModeRegister):

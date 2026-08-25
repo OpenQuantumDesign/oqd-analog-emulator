@@ -22,6 +22,7 @@ from oqd_compiler_infrastructure import Post
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
 from pydantic import BaseModel
+from typing import List
 
 from oqd_analog_emulator.instructions import (
     ALIAS,
@@ -80,7 +81,7 @@ class QutipVM:
     def get_store(self):
         return self.store
     
-    def get_state(self, return_values,*, verbose=False):
+    def get_state(self, return_values,):
         if not isinstance(return_values, list):
             return return_values
         out = []
@@ -88,24 +89,37 @@ class QutipVM:
             if isinstance(value, ListTerminators):
                 continue
             if isinstance(value, list):
-                out.append(self.get_state(value,verbose=verbose))
+                out.append(self.get_state(value))
             elif isinstance(value, RegisterObject):
-                out.append((value,self.registers[value]) if verbose else self.registers[value])
+                out.append((value, self.registers[value]))
             else: out.append(value)
         return out
     
-    def get_args(self, num: int,):
+    def get_args(self, num: int):
         out = []
         for _ in list(range(num)):
             item = self.pop()
-            if isinstance(item, RegisterObject):
-                out.append([self.registers[item]])
-            elif isinstance(item, list):
+            # if isinstance(item, RegisterObject):
+            #     out.append([self.registers[item]])
+            if isinstance(item, list):
                 out.append(recursive_filter(item,lambda x: not isinstance(x, ListTerminators)))
             else:
                 out.append(item)
-        # print(self.get_state(out))
         return self.get_state(out)
+    
+    def get_targets(self, targets):
+        out = []
+        if isinstance(targets, RegisterObject):
+            return self.registers[targets]
+        if isinstance(targets, list):
+            for item in targets:
+                if isinstance(item, RegisterObject):
+                    out.append(self.registers[item])
+                elif isinstance(item, list):
+                    out.append(self.get_targets(item))
+                else:
+                    out.append(item)
+        return out
             
     def push(self, item):
         if isinstance(item, list):
@@ -239,6 +253,17 @@ class QutipVM:
     
     def run_INIT(self):
         targets = self.get_args(1)[0]
+        qubits = []
+        actual_qubits = []
+        if not isinstance(targets, list):
+            targets = [targets]
+        for target, register in targets:
+            qubits.append(target)
+            actual_qubits.append(register)
+        targets = actual_qubits
+        # print(targets)
+        # targets = self.get_targets(targets)
+        # print(targets)
         for target in targets:
             if isinstance(target, QubitObject):
                 target.state = qt.Qobj([1, 0])
@@ -249,6 +274,15 @@ class QutipVM:
     
     def run_MEASURE(self):
         targets = self.get_args(1)[0]
+        if not isinstance(targets, list):
+            targets = [targets]
+        # targets = self.get_targets(targets)
+        qubits = []
+        actual_qubits = []
+        for target, register in targets:
+            qubits.append(target)
+            actual_qubits.append(register)
+        targets = actual_qubits
         counts = {}
         for ind, target in enumerate(targets):
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
@@ -300,41 +334,105 @@ class QutipVM:
         self.store[name].append(ListTerminators.LISTEND)
     
     # Pads the hamiltonian with additional dimensions if required and reorders states
-    def _pad(self, hamiltonian, targets):
+    def _pad(self, hamiltonian, targets, qubits):
         states = []
         state_dims = 0
+        visited = set()
+        actual_qubits = []
         for target in targets:
+            if tuple(target.register) in visited:
+                continue
+            
+            
             states += [target.state]
-            # print(f"target type: " + str(type(target)))
             if isinstance(target, QubitRegister):
-                # print(target.qubits)
+                actual_qubits.extend(target.register)
+                visited.add(tuple(target.register))
                 state_dims += target.n
             else:
-                # print(target.name)
+                actual_qubits.append(target.register)
+                visited.add(target.register)
                 state_dims += 1
+        
+        # print("\nVisited:")
+        # print(visited)
+        
+        
         h_dims = hamiltonian.dims[0]
-        # print("state_dims are:")
-        # print(state_dims)
-        # print("h dims are:")
-        # print(h_dims)
         diff = state_dims - len(h_dims)
         
         for _ in list(range(diff)):
             # h_dims[0] *= h_dims[1]
+            qubits.append(-1)
             hamiltonian = qt.tensor(qt.qeye(2), hamiltonian)
         
+        print("\nQubits")
+        print(qubits)
+        
+        print("\nActual Qubits")
+        print(actual_qubits)
+        # indices = []
+        # for i, val in enumerate(actual_qubits):
+        #     if val in qubits:
+        #         indices.append(qubits.index(val))
+        #     else:
+        #         indices.append(-1)
+        
+        # k = indices.count(-1)
+        # for i, val in enumerate(indices):
+        #     indices[i] = val + k
+        
+        # indices = np.where(qubits == actual_qubits)[0]
+        
+        # print("\nIndices")
+        # print(indices)
+        
         states = qt.tensor(states)
+        dims = states.dims
         
-        # print("Hamiltonian: ")
+        print("\nBefore State: ")
+        print(states)
+        # print(dims)
+        # if diff != 0:
+            # print("\nSWAP\n")
+            # states = states.data_as("ndarray")
+            
+            # states = np.reshape(states, (len(dims[0]) + 1, len(dims[1]) + 1))
+            # print(states.shape)
+            # states = np.permute_dims(states, indices)
+            
+            # states = qt.tensor_swap(states, (0, 1))
+        
+        # Use np where for the new permutations, and then use np.permute_dims()
+        
+        # print("\nHamiltonian: ")
         # print(hamiltonian)
-        # print("state: ")
-        # print(states)
+        # states = qt.Qobj(states)
+        print("\nState: ")
+        print(states)
         
-        return states, hamiltonian
+        return states, hamiltonian, targets
     
     def run_EVOLVE(self):
         args = self.get_args(3)
         targets = args[0]
+        qubits = []
+        actual_qubits = []
+        if not isinstance(targets, list):
+            targets = [targets]
+        for target, register in targets:
+            qubits.append(target)
+            actual_qubits.append(register)
+        
+        targets = actual_qubits
+        # qubits = targets[0]
+        # targets = targets[1]
+        # targets: List[Tuple[RegisterObject, Union[QubitRegister, QubitObject]]]
+        print("\nqubits:")
+        print(qubits)
+        # targets = self.get_targets(targets)
+        if not isinstance(targets, list):
+            targets = [targets]
         # print(f"targets: " + str(targets))
         duration = args[1]
         # print(f"duration: " + str(duration))
@@ -349,7 +447,7 @@ class QutipVM:
             hamiltonian = compiler_pass(hamiltonian)
             # print(f"hamiltonian after pass: " + str(hamiltonian))
         
-        states, hamiltonian = self._pad(hamiltonian, targets)
+        states, hamiltonian, targets = self._pad(hamiltonian, targets, qubits)
             
         start_runtime = time.time()
         result_qobj = qt.sesolve(
@@ -450,7 +548,7 @@ class QutipInterpreter:
         return self.vm.get_store()
     
     def get_state(self, return_values):
-        return self.vm.get_state(return_values, verbose=True)
+        return self.vm.get_state(return_values)
         
     def get_instructions(self):
         return self.INSTRUCTIONS
