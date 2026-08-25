@@ -83,7 +83,7 @@ class QutipQobjEvoGenerator(ConversionRule):
     def map_MathVar(self, model, operands):
         if model.name == "#t":
             return lambda t: t
-        
+
         if model.name == "#s":
             return lambda t: t - self.current_time
 
@@ -138,5 +138,3 @@ class QutipQobjEvoGenerator(ConversionRule):
 
     def map_MathPow(self, model, operands):
         return lambda t: operands["expr1"](t) ** operands["expr2"](t)
-
-

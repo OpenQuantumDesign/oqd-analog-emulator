@@ -28,10 +28,7 @@ from oqd_core.interface.analog.operation import AnalogGate, AnalogCircuit
 
 circuit = AnalogCircuit()
 gate = AnalogGate(hamiltonian=-(np.pi / 4) * PauliX())
-circuit.evolve(
-    duration=1.0,
-    gate=gate
-)
+circuit.evolve(duration=1.0, gate=gate)
 ```
 
 In the first lines, we import the relevant objects for analog mode -- the circuit, gate, and operator objects.

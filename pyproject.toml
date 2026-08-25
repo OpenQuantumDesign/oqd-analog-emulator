@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires      = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 
@@ -47,32 +47,29 @@ docs = [
   "mkdocstrings",
   "mkdocs-material",
   "mkdocstrings-python",
-  "mdx_truly_sane_lists"
+  "mdx_truly_sane_lists",
 ]
-test = [
-  "pytest"
-]
+test = ["pytest"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where   = ["src"]
 include = ["oqd_analog_emulator*"]
 
+[tool.ruff.lint]
+select  = ["E4", "E7", "E9", "F", "I"]
+fixable = ["ALL"]
 
 [tool.uv.sources]
-oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", branch = "v1.0" }
-oqd-analog-emulator = { workspace = true }
+oqd-core                    = { git = "https://github.com/openquantumdesign/oqd-core", branch = "v1.0" }
+oqd-analog-emulator         = { workspace = true }
 oqd-compiler-infrastructure = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" }
-oqd-dataschema = { git = "https://github.com/openquantumdesign/oqd-dataschema"}
+oqd-dataschema              = { git = "https://github.com/openquantumdesign/oqd-dataschema" }
 
 [dependency-groups]
-dev = [
-    "jupyter>=1.1.1",
-    "pre-commit>=4.1.0",
-    "ruff>=0.9.7",
-]
+dev = ["jupyter>=1.1.1", "pre-commit>=4.1.0", "ruff>=0.9.7"]
 
 
 [project.urls]
-Homepage = "https://github.com/OpenQuantumDesign/oqd-analog-emulator"
+Homepage   = "https://github.com/OpenQuantumDesign/oqd-analog-emulator"
 Repository = "https://github.com/OpenQuantumDesign/oqd-analog-emulator.git"
-Issues = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
+Issues     = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
