@@ -27,10 +27,9 @@ def get_amplitude_arrays(state: list):
 def assert_lists_close(list1, list2, tolerance=0.001):
     assert len(list1) == len(list2), "The input lists have different length"
     for i, (elem1, elem2) in enumerate(zip(list1, list2)):
-        assert (
-            abs(elem1 - elem2) <= tolerance
-        ), "List elements {i}, {elem1} and {elem2}, are out of tolerance"
-
+        assert abs(elem1 - elem2) <= tolerance, (
+            "List elements {i}, {elem1} and {elem2}, are out of tolerance"
+        )
 
 
 def interpreter(program):
@@ -46,15 +45,15 @@ class TestQutipExperiment:
             r = qreg(1) \n initialize(r) \n H = -(3.14159 / 4) %* %X \n
             evolve(H, 1, r) \n evolve(H, 1, r) \n evolve(H, 1, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [-0.707, 0])
         assert_lists_close(imag_amplitudes, [0, 0.707])
-    
+
     def test_bell_state_standard(self):
         """Standard Bell State preparation"""
         program = """
@@ -64,11 +63,11 @@ class TestQutipExperiment:
             evolve(-1 %* (%I %@ %X), pi / 4, r) \n evolve(-1 %* (%X %@ %I), pi / 4, r) \n 
             evolve(-1 %* (%Y %@ %I), pi / 4, r) \n evolve(%I %@ %I, pi / 4, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [0.707, 0, 0, 0.707])
         assert_lists_close(imag_amplitudes, [0, 0, 0, 0])
@@ -85,30 +84,30 @@ class TestQutipExperiment:
             evolve(-1 %* (%I %@ %I %@ %X), pi / 4, r) \n evolve(-1 %* (%X %@ %I %@ %I), pi / 4, r) \n
             evolve(-1 %* (%Y %@ %I %@ %I), pi / 4, r) \n evolve(%I %@ %I %@ %I, pi / 4, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [0.707, 0, 0, 0, 0, 0, 0, 0.707])
         assert_lists_close(imag_amplitudes, [0, 0, 0, 0, 0, 0, 0, 0])
-    
+
     def test_identity_operation_simple(self):
         """Simple Identity operation using inverse"""
         program = """ 
             pi = 3.14159 \n r = qreg(1) \n initialize(r) \n evolve(-1 %* %X, 1, r) \n
             evolve(%X, 1, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [1, 0])
         assert_lists_close(imag_amplitudes, [0, 0])
-    
+
     def test_identity_operation_nested(self):
         """Nested Identity operation using inverse"""
         program = """ 
@@ -116,30 +115,30 @@ class TestQutipExperiment:
             evolve(%X, 1, r) \n evolve(-1 %* %X, 1, r) \n evolve(%X, 1, r) \n 
             \n evolve(-1 %* %X, 1, r) \n evolve(%X, 1, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [1, 0])
         assert_lists_close(imag_amplitudes, [0, 0])
-    
+
     def test_identity_operation_three_qubit_simple(self):
         """Simple Identity operation using inverse for 3 qubits"""
         program = """ 
             pi = 3.14159 \n r = qreg(3) \n initialize(r) \n evolve(-1 %* (%X %@ %Y %@ %Z), 1, r) \n
             evolve(%X %@ %Y %@ %Z, 1, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [1, 0, 0, 0, 0, 0, 0, 0])
         assert_lists_close(imag_amplitudes, [0, 0, 0, 0, 0, 0, 0, 0])
-        
+
     def test_identity_operation_three_qubit_nested(self):
         """Nested Identity operation using inverse for 3 qubits"""
         program = """ 
@@ -148,18 +147,18 @@ class TestQutipExperiment:
             evolve(%X %@ %X %@ %X, 1, r) \n evolve(-1 %* (%I %@ %X %@ %I), 1, r) \n
             evolve(%I %@ %X %@ %I, 1, r) \n r
         """
-        
+
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [1, 0, 0, 0, 0, 0, 0, 0])
         assert_lists_close(imag_amplitudes, [0, 0, 0, 0, 0, 0, 0, 0])
-    
+
     def test_one_qubit_rabi_flopping_canonicalization(self):
         """One qubit rabi flopping canonicalization"""
-    
+
         program = """ 
             r = qreg(1) \n initialize(r) \n Hx = -1 %* ((3.14159 / 8) %* (2 %* %X)) \n 
             evolve(Hx, 1, r) \n evolve(Hx, 1, r) \n evolve(Hx, 1, r) \n r
@@ -167,25 +166,25 @@ class TestQutipExperiment:
         output = interpreter(program)
         qubit_obj = output[0][1]
         state = qubit_obj.state
-        
+
         real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
         assert_lists_close(real_amplitudes, [-0.707, 0])
         assert_lists_close(imag_amplitudes, [0, 0.707])
-       
+
     # def test_bell_state_canonicalization(self):
     #     """Standard Bell State preparation canonicalization"""
     #     program = """
-    #         pi = 3.14159 \n r = qreg(2) \n initialize(r) \n evolve(%I %@ %I, (3 * pi) / 2, r) \n 
-    #         evolve(%X %@ %I, pi / 2, r) \n evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n 
-    #         evolve(%Y %@ %I, pi / 4, r) \n evolve(%X %@ (%I %* %X %* %I), pi / 4, r) \n 
-    #         evolve(-1 %* (%I %@ %X), pi / 4, r) \n evolve(-1 %* (%X %@ %I), pi / 4, r) \n 
+    #         pi = 3.14159 \n r = qreg(2) \n initialize(r) \n evolve(%I %@ %I, (3 * pi) / 2, r) \n
+    #         evolve(%X %@ %I, pi / 2, r) \n evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n
+    #         evolve(%Y %@ %I, pi / 4, r) \n evolve(%X %@ (%I %* %X %* %I), pi / 4, r) \n
+    #         evolve(-1 %* (%I %@ %X), pi / 4, r) \n evolve(-1 %* (%X %@ %I), pi / 4, r) \n
     #         evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n evolve(%I %@ %I, pi / 4, r) \n r
     #     """
-        
+
     #     output = interpreter(program)
     #     qubit_obj = output[0][1]
     #     state = qubit_obj.state
-        
+
     #     real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
     #     assert_lists_close(real_amplitudes, [0.707, 0, 0, 0.707])
     #     assert_lists_close(imag_amplitudes, [0, 0, 0, 0])

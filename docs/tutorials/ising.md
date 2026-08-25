@@ -32,10 +32,11 @@ Then we define the [`AnalogGate`][core.interface.analog.operations.AnalogGate] o
 
 ```py
 """For simplicity we initialize some Operators"""
+
 X, Z, I = PauliX(), PauliZ(), PauliI()
 
 H = AnalogGate(
-    hamiltonian= (X @ X) + (Z @ I) + (I @ Z),
+    hamiltonian=(X @ X) + (Z @ I) + (I @ Z),
     dissipation=Dissipation(),
 )
 ```
@@ -44,7 +45,7 @@ Then we define the [`AnalogCircuit`][core.interface.analog.operations.AnalogCirc
 
 ```py
 circuit = AnalogCircuit()
-circuit.evolve(duration = 5, gate = H)
+circuit.evolve(duration=5, gate=H)
 ```
 
 For QuTip simulation we need to define the arguements which contain the number of shots and the metrics we want to evaluate.
@@ -54,7 +55,7 @@ args = TaskArgsAnalog(
     n_shots=100,
     fock_cutoff=4,
     metrics={
-        'entanglement_entropy': EntanglementEntropyVN(qreg = [1]),
+        "entanglement_entropy": EntanglementEntropyVN(qreg=[1]),
     },
     dt=1e-2,
 )
@@ -70,7 +71,7 @@ The [`Task`][core.backend.task.Task] can be compiled first to a [`QutipExperimen
 
     ``` py
     backend = QutipBackend()
-    experiment, args = backend.compile(task = task)
+    experiment, args = backend.compile(task=task)
     ```
 
 === "Directly Simulate"
@@ -78,5 +79,5 @@ The [`Task`][core.backend.task.Task] object can be directly simulated by the `ru
 
     ``` py
     backend = QutipBackend()
-    results = backend.run(task = task)
+    results = backend.run(task=task)
     ```

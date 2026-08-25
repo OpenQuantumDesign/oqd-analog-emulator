@@ -29,9 +29,10 @@ Then we define the [`AnalogGate`][core.interface.analog.operations.AnalogGate] o
 
 ```py
 """For simplicity we initialize the X Operator"""
+
 X = PauliX()
 
-H = AnalogGate(hamiltonian= -(np.pi / 4) * X)
+H = AnalogGate(hamiltonian=-(np.pi / 4) * X)
 ```
 
 Then we define the [`AnalogCircuit`][core.interface.analog.operations.AnalogCircuit] object and evolve it according to the hamiltonian defined above
@@ -48,7 +49,7 @@ args = TaskArgsAnalog(
     n_shots=100,
     fock_cutoff=4,
     metrics={
-        "Z": Expectation(operator = Z),
+        "Z": Expectation(operator=Z),
     },
     dt=1e-3,
 )
@@ -64,8 +65,8 @@ The [`Task`][core.backend.task.Task] can be compiled first to a [`QutipExperimen
 
     ``` py
     backend = QutipBackend()
-    experiment = backend.compile(task = task)
-    results = backend.run(experiment = experiment)
+    experiment = backend.compile(task=task)
+    results = backend.run(experiment=experiment)
     ```
 
 === "Directly Simulate"
@@ -73,5 +74,5 @@ The [`Task`][core.backend.task.Task] object can be directly simulated by the `ru
 
     ``` py
     backend = QutipBackend()
-    results = backend.run(task = task)
+    results = backend.run(task=task)
     ```

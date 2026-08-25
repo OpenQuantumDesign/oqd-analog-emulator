@@ -23,8 +23,8 @@ def interpreter(program):
     program, _, output = backend.run(program)
     return output
 
-class TestQutipBackend:
 
+class TestQutipBackend:
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
@@ -57,8 +57,8 @@ class TestQutipBackend:
     )
     def test_qutip_math(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
-    
+        assert output == expected
+
     @pytest.mark.parametrize(
         "program, expected",
         [
@@ -79,7 +79,7 @@ class TestQutipBackend:
     def test_qutip_math_approx(self, program, expected):
         output = interpreter(program)
         assert pytest.approx(output, 0.001) == expected
-    
+
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
@@ -95,7 +95,7 @@ class TestQutipBackend:
             ("false and false", 0),
             ("false or false", 0),
             ("a = true \n b = false \n a or b", 1),
-            ("a = true \n b = false \n a and b", 0),            
+            ("a = true \n b = false \n a and b", 0),
             ("a = true \n b = false \n a || b", 1),
             ("a = true \n b = false \n a && b", 0),
             ("a = true \n not a", 0),
@@ -106,11 +106,11 @@ class TestQutipBackend:
     )
     def test_qutip_bool(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
-    
+        assert output == expected
+
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("1 == 2", 0),
             ("1 >= 2", 0),
             ("1 <= 2", 1),
@@ -131,11 +131,11 @@ class TestQutipBackend:
     )
     def test_qutip_comparators(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
-        
+        assert output == expected
+
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("[1, 2, 3]", [1, 2, 3]),
             ("[1]", [1]),
             ("[]", []),
@@ -144,22 +144,22 @@ class TestQutipBackend:
     )
     def test_qutip_list(self, program, expected):
         output = interpreter(program)
-        assert(all(output) == all(expected))
-    
+        assert all(output) == all(expected)
+
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("[[1], 2, 3]", [[1], 2, 3]),
             ("[[1, 2], 3]", [[1, 2], 3]),
         ],
     )
     def test_qutip_nested_list(self, program, expected):
         output = interpreter(program)
-        assert(all(output) == all(expected))
+        assert all(output) == all(expected)
 
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("if (true) {\n a = 5} \n a", 5),
             ("a = 1 \n if (false) {\n a = 5} \n a", 1),
             ("a = 1 \n if (a > 0) {\n a = 5} \n a", 5),
@@ -168,11 +168,11 @@ class TestQutipBackend:
     )
     def test_qutip_if(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
+        assert output == expected
 
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("a = 1 \n if (true) {\n a = 5} \n else {\n a = 2} \n a", 5),
             ("a = 1 \n if (false) {\n a = 5} \n else {\n a = 2} \n a", 2),
             ("a = 1 \n if (a > 0) {\n a = 5} \n else {\n a = 2} \n a", 5),
@@ -181,25 +181,31 @@ class TestQutipBackend:
     )
     def test_qutip_if_else(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
+        assert output == expected
 
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("x = 2 \n while (x > 0) {\n x = x - 1} \n x", 0),
             ("x = 2 \n while (true) {\n x = x + 1 \n if (x == 3) {\n break}} \n x", 3),
             ("x = 2 \n while (false) {\n x = x + 1 \n if (x == 3) {\n break}} \n x", 2),
-            ("x = 2 \n a = 1 \n while (true) {\n x = x + 1 \n if (x == 5) {\n break} \n if (a>1) {\n continue}\n a = a + 1 \n} \n a", 2),
-            ("x = 2 \n a = 1 \n while (true) {\n x = x + 1 \n if (x == 5) {\n break} \n if (a>1) {\n continue}\n a = a + 1 \n} \n x", 5),
+            (
+                "x = 2 \n a = 1 \n while (true) {\n x = x + 1 \n if (x == 5) {\n break} \n if (a>1) {\n continue}\n a = a + 1 \n} \n a",
+                2,
+            ),
+            (
+                "x = 2 \n a = 1 \n while (true) {\n x = x + 1 \n if (x == 5) {\n break} \n if (a>1) {\n continue}\n a = a + 1 \n} \n x",
+                5,
+            ),
         ],
     )
     def test_qutip_while(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
+        assert output == expected
 
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("r = qreg(2)", []),
             ("r = qreg(2) \n initialize(r)", []),
             ("r = qreg(2) \n initialize(r[0])", []),
@@ -210,12 +216,13 @@ class TestQutipBackend:
     )
     def test_qutip_qubit_registers(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
+        assert output == expected
+
 
 class TestQutipEvolve:
     @pytest.mark.parametrize(
         ("program", "expected"),
-        [   
+        [
             ("r = qreg(1) \n initialize(r[0]) \n result = evolve(%X, 1, r[0])", []),
             ("r = qreg(2) \n initialize(r) \n result = evolve(%X, 1, r[0])", []),
             ("r = qreg(5) \n initialize(r) \n result = evolve(%Y, 1, r[1])", []),
@@ -224,33 +231,48 @@ class TestQutipEvolve:
     )
     def test_qutip_single_qubit(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
-    
+        assert output == expected
+
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
             ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %I, 1, r)", []),
             ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %X, 1, r)", []),
-            ("r = qreg(3) \n initialize(r) \n result = evolve(%Y %@ %I, 1, [r[0], r[2]])", []),
-            ("r = qreg(5) \n initialize(r) \n result = evolve(%Z %@ %I, 1, [r[1], r[4]])", []),
+            (
+                "r = qreg(3) \n initialize(r) \n result = evolve(%Y %@ %I, 1, [r[0], r[2]])",
+                [],
+            ),
+            (
+                "r = qreg(5) \n initialize(r) \n result = evolve(%Z %@ %I, 1, [r[1], r[4]])",
+                [],
+            ),
         ],
     )
     def test_qutip_two_qubits(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
-    
+        assert output == expected
+
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
-            ("r = qreg(2) \n initialize(r) \n evolve(%X %@ %X, 1, r) \n result = evolve(%X, 1, r[0])", []),
-            ("r = qreg(5) \n initialize(r) \n evolve(%X %@ %X, 1, [r[0], r[1]]) \n result = evolve(%X, 1, r[1])", []),
-            ("r = qreg(4) \n initialize(r) \n evolve(%X %@ %X %@ %X, 1, [r[0], r[1], r[2]]) \n result = evolve(%X, 1, r[0])", []),
+            (
+                "r = qreg(2) \n initialize(r) \n evolve(%X %@ %X, 1, r) \n result = evolve(%X, 1, r[0])",
+                [],
+            ),
+            (
+                "r = qreg(5) \n initialize(r) \n evolve(%X %@ %X, 1, [r[0], r[1]]) \n result = evolve(%X, 1, r[1])",
+                [],
+            ),
+            (
+                "r = qreg(4) \n initialize(r) \n evolve(%X %@ %X %@ %X, 1, [r[0], r[1], r[2]]) \n result = evolve(%X, 1, r[0])",
+                [],
+            ),
         ],
     )
     def test_qutip_hamiltonian_padding(self, program, expected):
         output = interpreter(program)
-        assert(output == expected)
-    
+        assert output == expected
+
     # @pytest.mark.parametrize(
     #     ("program", "expected"),
     #     [
@@ -263,7 +285,3 @@ class TestQutipEvolve:
     # def test_qutip_state_ordering(self, program, expected):
     #     output = interpreter(program)
     #     assert(output == expected)
-    
-    
-    
-        

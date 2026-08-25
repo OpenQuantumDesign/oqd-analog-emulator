@@ -35,7 +35,7 @@ class QutipBackend(BackendBase):
     """
     Class representing the Qutip backend
     """
-    
+
     def compile(self, program: str):
         circuit = parse_analog(program)
         cfg = AnalogCFGBuilder().run(circuit)
@@ -43,18 +43,16 @@ class QutipBackend(BackendBase):
 
         symbol_analysis = AnalogSymbolTableBuilder(cfg, checker.dataflow_result)
         symbol_table = symbol_analysis.symbol_table
-        
-        circuit, cfg = compile_analog_circuit(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
-        
+
+        circuit, cfg = compile_analog_circuit(
+            circuit=circuit, cfg=cfg, symbol_table=symbol_table
+        )
+
         program = AnalogProgram(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
 
         return program
-        
 
-    def run(
-        self,
-        program: str | AnalogProgram = None
-    ):
+    def run(self, program: str | AnalogProgram = None):
         """
         Method to simulate an experiment using the QuTip backend
 
@@ -63,17 +61,16 @@ class QutipBackend(BackendBase):
         Returns:
             Program object, Interpreter object, and the output of the QuTip simulation.
         """
-        
+
         if isinstance(program, str):
             program = self.compile(program)
 
         if not isinstance(program, AnalogProgram):
             raise TypeError("Provide valid analog code or AnalogProgram.")
-            
+
         cfg = program.cfg
 
-        interpreter = QutipInterpreter(graph=cfg) 
+        interpreter = QutipInterpreter(graph=cfg)
         output = interpreter.run()
-        
-        return program, interpreter, output
 
+        return program, interpreter, output
