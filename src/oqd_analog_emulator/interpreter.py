@@ -15,6 +15,7 @@
 import itertools
 import math
 import time
+from typing import List
 
 import numpy as np
 import qutip as qt
@@ -44,11 +45,17 @@ class QubitObject(VisitableBaseModel):
     time: float
     state: object
 
+    def __hash__(self):
+        return hash(self.register)
+
 
 class QubitRegister(VisitableBaseModel):
-    register: list[RegisterObject] = []
+    register: List[RegisterObject] = []
     time: float
     state: object
+
+    def __hash__(self):
+        return hash(tuple(self.register))
 
     @property
     def n(self):
@@ -114,6 +121,7 @@ class QutipVM:
                 )
             else:
                 out.append(item)
+
         return self.get_state(out)
 
     def push(self, item):
@@ -325,73 +333,51 @@ class QutipVM:
         self.store[name].append(ListTerminators.LISTEND)
 
     # Pads the hamiltonian with additional dimensions if required and reorders states
-    def _pad(self, hamiltonian, targets, qubits):
-        states = []
-        state_dims = 0
-        visited = set()
-        all_qubits = []
-        for target in targets:
-            if tuple(target.register) in visited:
-                continue
-            states += [target.state]
+    def _pad(self, hamiltonian, targets):
+        qubits, targets = (
+            zip(*targets) if isinstance(targets, list) else zip(*[targets])
+        )
+        targets, qubits = list(targets), list(qubits)
 
-            if isinstance(target, QubitRegister):
-                all_qubits.extend(target.register)
-                visited.add(tuple(target.register))
-                state_dims += target.n
+        _targets = map(
+            lambda x: (
+                (x.register, x.state)
+                if isinstance(x, QubitObject)
+                else (x.register, x.state)
+            ),
+            set(targets),
+        )
+
+        all_qubits = []
+        states = []
+        for q, s in _targets:
+            states.append(s)
+
+            if isinstance(q, list):
+                all_qubits.extend(q)
             else:
-                all_qubits.append(target.register)
-                visited.add(target.register)
-                state_dims += 1
+                all_qubits.append(q)
 
         h_dims = hamiltonian.dims[0]
-        diff = state_dims - len(h_dims)
+        diff = len(all_qubits) - len(h_dims)
 
-        padded_hamiltonian = hamiltonian
-        for _ in list(range(diff)):
-            qubits.append(-1)
-            padded_hamiltonian = qt.tensor(qt.qeye(2), padded_hamiltonian)
+        padded_hamiltonian = qt.tensor(
+            *[qt.qeye(2) for _ in list(range(diff))], hamiltonian
+        )
 
-        indices = []
-        for i, val in enumerate(all_qubits):
-            if val in qubits:
-                indices.append(qubits.index(val))
-            else:
-                indices.append(-1)
+        # Calculate State
+        padded_qubits = [*set(all_qubits).difference(qubits), *qubits]
+        permute_order = [all_qubits.index(x) for x in padded_qubits]
 
-        k = indices.count(-1)
-        count = 0
-        for i, val in enumerate(indices):
-            if val != -1:
-                indices[i] = val + k
-            else:
-                indices[i] = count
-                count += 1
+        states = qt.tensor(*states)
+        states = states.permute(permute_order)
 
-        states = qt.tensor(states)
-        if diff != 0:
-            states = states.permute(indices)
-
-        reordered_qubits = [y for _, y in sorted(zip(indices, all_qubits))]
-
-        return states, padded_hamiltonian, reordered_qubits
+        return states, padded_hamiltonian, padded_qubits
 
     def run_EVOLVE(self):
         args = self.get_args(3)
         targets = args[0]
 
-        qubits = []
-        actual_qubits = []
-        if not isinstance(targets, list):
-            targets = [targets]
-        for target, register in targets:
-            qubits.append(target)
-            actual_qubits.append(register)
-
-        targets = actual_qubits
-
-        if not isinstance(targets, list):
-            targets = [targets]
         duration = args[1]
         hamiltonian = args[2]
 
@@ -407,9 +393,7 @@ class QutipVM:
             hamiltonian = compiler_pass(hamiltonian)
             # print(f"hamiltonian after pass: " + str(hamiltonian))
 
-        states, padded_hamiltonian, reordered_qubits = self._pad(
-            hamiltonian, targets, qubits
-        )
+        states, padded_hamiltonian, reordered_qubits = self._pad(hamiltonian, targets)
 
         start_runtime = time.time()
         result_qobj = qt.sesolve(
