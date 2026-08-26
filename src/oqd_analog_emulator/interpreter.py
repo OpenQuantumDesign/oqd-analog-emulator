@@ -21,8 +21,6 @@ import qutip as qt
 from oqd_compiler_infrastructure import Post, VisitableBaseModel
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
-from pydantic import BaseModel
-from typing import List
 
 from oqd_analog_emulator.instructions import (
     ALIAS,

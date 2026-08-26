@@ -14,15 +14,6 @@
 
 import numpy as np
 import pytest
-from oqd_core.interface.analog.expr import (
-    Annihilation,
-    Creation,
-    Identity,
-    PauliI,
-    PauliX,
-    PauliY,
-    PauliZ,
-)
 
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
