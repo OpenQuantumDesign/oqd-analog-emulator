@@ -26,15 +26,6 @@ from oqd_core.interface.analog.expr import (
 
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
-X, Y, Z, I, A, C, ID = (
-    PauliX(),
-    PauliY(),
-    PauliZ(),
-    PauliI(),
-    Annihilation(),
-    Creation(),
-    Identity(),
-)
 
 def interpreter(program):
     backend = QutipBackend()
@@ -230,22 +221,58 @@ class TestQutipBackend:
         output = interpreter(program)
         assert(output == expected)
 
+class TestQutipEvolve:
     @pytest.mark.parametrize(
         ("program", "expected"),
         [   
+            ("r = qreg(1) \n initialize(r[0]) \n result = evolve(%X, 1, r[0])", []),
             ("r = qreg(2) \n initialize(r) \n result = evolve(%X, 1, r[0])", []),
-            ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %I, 1, r)", []),
-            ("r = qreg(2) \n initialize(r[0]) \n result = evolve(%X, 1, r[0])", []),
+            ("r = qreg(5) \n initialize(r) \n result = evolve(%Y, 1, r[1])", []),
+            ("r = qreg(2) \n initialize(r[0]) \n result = evolve(%Z, 1, r[0])", []),
         ],
     )
-    def test_qutip_evolve(self, program, expected):
+    def test_qutip_single_qubit(self, program, expected):
         output = interpreter(program)
         assert(output == expected)
-
+    
+    @pytest.mark.parametrize(
+        ("program", "expected"),
+        [
+            ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %I, 1, r)", []),
+            ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %X, 1, r)", []),
+            ("r = qreg(3) \n initialize(r) \n result = evolve(%Y %@ %I, 1, [r[0], r[2]])", []),
+            ("r = qreg(5) \n initialize(r) \n result = evolve(%Z %@ %I, 1, [r[1], r[4]])", []),
+        ],
+    )
+    def test_qutip_two_qubits(self, program, expected):
+        output = interpreter(program)
+        assert(output == expected)
+    
+    @pytest.mark.parametrize(
+        ("program", "expected"),
+        [
+            ("r = qreg(2) \n initialize(r) \n evolve(%X %@ %X, 1, r) \n result = evolve(%X, 1, r[0])", []),
+            ("r = qreg(5) \n initialize(r) \n evolve(%X %@ %X, 1, [r[0], r[1]]) \n result = evolve(%X, 1, r[1])", []),
+            ("r = qreg(4) \n initialize(r) \n evolve(%X %@ %X %@ %X, 1, [r[0], r[1], r[2]]) \n result = evolve(%X, 1, r[0])", []),
+        ],
+    )
+    def test_qutip_hamiltonian_padding(self, program, expected):
+        output = interpreter(program)
+        assert(output == expected)
+    
+    # @pytest.mark.parametrize(
+    #     ("program", "expected"),
+    #     [
+    #         ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %I, 1, r)", []),
+    #         ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %X, 1, r)", []),
+    #         ("r = qreg(3) \n initialize(r) \n result = evolve(%Y %@ %I, 1, [r[0], r[2]])", []),
+    #         ("r = qreg(5) \n initialize(r) \n result = evolve(%Z %@ %I, 1, [r[1], r[4]])", []),
+    #     ],
+    # )
+    # def test_qutip_state_ordering(self, program, expected):
+    #     output = interpreter(program)
+    #     assert(output == expected)
+    
+    
+    
         
-# class TestQutipExperiment:
-        
-#     def test_one_qubit_rabi_flopping(backend):
-#         """One qubit rabi flopping"""
-#         source = "r = qreg(1) \n H = -(3.14 / 4) %* %X \n  evolve(H, 1, r)"
-#         program, interpreter, output = backend.run(source=source)
