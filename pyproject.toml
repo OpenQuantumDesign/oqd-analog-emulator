@@ -60,7 +60,7 @@ select  = ["E4", "E7", "E9", "F", "I"]
 fixable = ["ALL"]
 
 [tool.uv.sources]
-oqd-core                    = { git = "https://github.com/openquantumdesign/oqd-core", branch = "v1.0" }
+oqd-core                    = { git = "https://github.com/openquantumdesign/oqd-core", branch = "compiler_passes" }
 oqd-analog-emulator         = { workspace = true }
 oqd-compiler-infrastructure = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" }
 oqd-dataschema              = { git = "https://github.com/openquantumdesign/oqd-dataschema" }

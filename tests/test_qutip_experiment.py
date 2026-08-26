@@ -171,20 +171,20 @@ class TestQutipExperiment:
         assert_lists_close(real_amplitudes, [-0.707, 0])
         assert_lists_close(imag_amplitudes, [0, 0.707])
 
-    # def test_bell_state_canonicalization(self):
-    #     """Standard Bell State preparation canonicalization"""
-    #     program = """
-    #         pi = 3.14159 \n r = qreg(2) \n initialize(r) \n evolve(%I %@ %I, (3 * pi) / 2, r) \n
-    #         evolve(%X %@ %I, pi / 2, r) \n evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n
-    #         evolve(%Y %@ %I, pi / 4, r) \n evolve(%X %@ (%I %* %X %* %I), pi / 4, r) \n
-    #         evolve(-1 %* (%I %@ %X), pi / 4, r) \n evolve(-1 %* (%X %@ %I), pi / 4, r) \n
-    #         evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n evolve(%I %@ %I, pi / 4, r) \n r
-    #     """
+    def test_bell_state_canonicalization(self):
+        """Standard Bell State preparation canonicalization"""
+        program = """
+            pi = 3.14159 \n r = qreg(2) \n initialize(r) \n evolve(%I %@ %I, (3 * pi) / 2, r) \n
+            evolve(%X %@ %I, pi / 2, r) \n evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n
+            evolve(%Y %@ %I, pi / 4, r) \n evolve(%X %@ (%I %* %X %* %I), pi / 4, r) \n
+            evolve(-1 %* (%I %@ %X), pi / 4, r) \n evolve(-1 %* (%X %@ %I), pi / 4, r) \n
+            evolve((-1 * 0.5) %* (%Y %@ (2 %* %I)), pi / 4, r) \n evolve(%I %@ %I, pi / 4, r) \n r
+        """
 
-    #     output = interpreter(program)
-    #     qubit_obj = output[0][1]
-    #     state = qubit_obj.state
+        output = interpreter(program)
+        qubit_obj = output[0][1]
+        state = qubit_obj.state
 
-    #     real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
-    #     assert_lists_close(real_amplitudes, [0.707, 0, 0, 0.707])
-    #     assert_lists_close(imag_amplitudes, [0, 0, 0, 0])
+        real_amplitudes, imag_amplitudes = get_amplitude_arrays(state)
+        assert_lists_close(real_amplitudes, [0.707, 0, 0, 0.707])
+        assert_lists_close(imag_amplitudes, [0, 0, 0, 0])

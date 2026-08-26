@@ -41,29 +41,29 @@ class RegisterObject(VisitableBaseModel):
 
 
 class QubitObject(VisitableBaseModel):
-    register: RegisterObject
+    name: RegisterObject
     time: float
     state: object
 
     def __hash__(self):
-        return hash(self.register)
+        return hash(self.name)
 
 
 class QubitRegister(VisitableBaseModel):
-    register: List[RegisterObject] = []
+    name: List[RegisterObject] = []
     time: float
     state: object
 
     def __hash__(self):
-        return hash(tuple(self.register))
+        return hash(tuple(self.name))
 
     @property
     def n(self):
-        return len(self.register)
+        return len(self.name)
 
 
 class ModeObject(VisitableBaseModel):
-    register: RegisterObject
+    name: RegisterObject
     time: float
     state: object
 
@@ -91,7 +91,7 @@ class QutipVM:
         self.history = {}
 
     def new_register(self, state):
-        return QubitRegister(register=[], time=self.GLOBAL_T, state=state)
+        return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
 
     def get_store(self):
         return self.store
@@ -259,9 +259,9 @@ class QutipVM:
         actual_qubits = []
         if not isinstance(targets, list):
             targets = [targets]
-        for target, register in targets:
+        for target, name in targets:
             qubits.append(target)
-            actual_qubits.append(register)
+            actual_qubits.append(name)
         targets = actual_qubits
 
         for target in targets:
@@ -279,9 +279,9 @@ class QutipVM:
 
         qubits = []
         actual_qubits = []
-        for target, register in targets:
+        for target, name in targets:
             qubits.append(target)
-            actual_qubits.append(register)
+            actual_qubits.append(name)
         targets = actual_qubits
         counts = {}
         for ind, target in enumerate(targets):
@@ -312,24 +312,24 @@ class QutipVM:
         self.store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
             obj = QubitObject(
-                register=RegisterObject(name=name, index=n),
+                name=RegisterObject(name=name, index=n),
                 time=self.GLOBAL_T,
                 state=[],
             )
-            self.registers[obj.register] = obj
-            self.store[name].append(obj.register)
+            self.registers[obj.name] = obj
+            self.store[name].append(obj.name)
         self.store[name].append(ListTerminators.LISTEND)
 
     def run_MREG(self, name, size):
         self.store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
             obj = ModeObject(
-                register=RegisterObject(name=name, index=n),
+                name=RegisterObject(name=name, index=n),
                 time=self.GLOBAL_T,
                 state=[],
             )
-            self.registers[obj.register] = obj
-            self.store[name].append(obj.register)
+            self.registers[obj.name] = obj
+            self.store[name].append(obj.name)
         self.store[name].append(ListTerminators.LISTEND)
 
     # Pads the hamiltonian with additional dimensions if required and reorders states
@@ -341,9 +341,9 @@ class QutipVM:
 
         _targets = map(
             lambda x: (
-                (x.register, x.state)
+                (x.name, x.state)
                 if isinstance(x, QubitObject)
-                else (x.register, x.state)
+                else (x.name, x.state)
             ),
             set(targets),
         )
@@ -418,20 +418,20 @@ class QutipVM:
         for target in reordered_qubits:
             target = self.registers[target]
             if isinstance(target, QubitObject):
-                if target.register not in qreg.register:
-                    qreg.register.append(target.register)
+                if target.name not in qreg.name:
+                    qreg.name.append(target.name)
             elif isinstance(target, QubitRegister):
-                for register in target.register:
-                    if register not in qreg.register:
-                        qreg.register.append(register)
+                for name in target.name:
+                    if name not in qreg.name:
+                        qreg.name.append(name)
 
         for target in reordered_qubits:
             target = self.registers[target]
             if isinstance(target, QubitObject):
-                self.registers[target.register] = qreg
+                self.registers[target.name] = qreg
             elif isinstance(target, QubitRegister):
-                for register in target.register:
-                    self.registers[register] = qreg
+                for name in target.name:
+                    self.registers[name] = qreg
 
         # self.push(result_qobj.final_state.full().squeeze())
         self.push(QutipVMNULL)
