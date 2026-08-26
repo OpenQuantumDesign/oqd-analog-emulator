@@ -273,15 +273,3 @@ class TestQutipEvolve:
         output = interpreter(program)
         assert output == expected
 
-    # @pytest.mark.parametrize(
-    #     ("program", "expected"),
-    #     [
-    #         ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %I, 1, r)", []),
-    #         ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %X, 1, r)", []),
-    #         ("r = qreg(3) \n initialize(r) \n result = evolve(%Y %@ %I, 1, [r[0], r[2]])", []),
-    #         ("r = qreg(5) \n initialize(r) \n result = evolve(%Z %@ %I, 1, [r[1], r[4]])", []),
-    #     ],
-    # )
-    # def test_qutip_state_ordering(self, program, expected):
-    #     output = interpreter(program)
-    #     assert(output == expected)

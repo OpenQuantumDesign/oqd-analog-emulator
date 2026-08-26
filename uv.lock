@@ -2493,7 +2493,7 @@ requires-dist = [
     { name = "mkdocstrings", marker = "extra == 'docs'" },
     { name = "mkdocstrings-python", marker = "extra == 'docs'" },
     { name = "oqd-compiler-infrastructure", git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" },
-    { name = "oqd-core", git = "https://github.com/openquantumdesign/oqd-core?branch=compiler_passes" },
+    { name = "oqd-core", git = "https://github.com/openquantumdesign/oqd-core?branch=v1.0" },
     { name = "oqd-dataschema", git = "https://github.com/openquantumdesign/oqd-dataschema" },
     { name = "pydantic", specifier = ">=2.4" },
     { name = "pymdown-extensions", marker = "extra == 'docs'" },
@@ -2522,7 +2522,7 @@ dependencies = [
 [[package]]
 name = "oqd-core"
 version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-core?branch=compiler_passes#dd8924981f140a23b59cc4c0ac287573e37574d7" }
+source = { git = "https://github.com/openquantumdesign/oqd-core?branch=v1.0#3737411eb5535dd64f8776607eeeeb6f01e2d2a8" }
 dependencies = [
     { name = "antlr4-python3-runtime" },
     { name = "antlr4-tools" },
