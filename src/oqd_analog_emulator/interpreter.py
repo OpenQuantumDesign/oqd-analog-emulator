@@ -67,6 +67,22 @@ class ModeObject(VisitableBaseModel):
     time: float
     state: object
 
+    def __hash__(self):
+        return hash(self.name)
+
+
+class ModeRegister(VisitableBaseModel):
+    name: List[RegisterObject] = []
+    time: float
+    state: object
+
+    def __hash__(self):
+        return hash(tuple(self.name))
+
+    @property
+    def n(self):
+        return len(self.name)
+
 
 QutipVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
@@ -79,100 +95,8 @@ def recursive_filter(lst, cond):
     )
 
 
-class QutipVM:
-    def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
-        self._n_shots = n_shots
-        self._fock_cutoff = fock_cutoff
-        self._dt = dt
-        self.stack = []
-        self.store = {}
-        self.registers = {}
-        self.GLOBAL_T = 0.0
-        self.history = {}
-
-    def new_register(self, state):
-        return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
-
-    def get_store(self):
-        return self.store
-
-    def get_state(self, return_values):
-        if not isinstance(return_values, list):
-            return return_values
-        out = []
-        for value in return_values:
-            if isinstance(value, ListTerminators):
-                continue
-            if isinstance(value, list):
-                out.append(self.get_state(value))
-            elif isinstance(value, RegisterObject):
-                out.append((value, self.registers[value]))
-            else:
-                out.append(value)
-        return out
-
-    def get_args(self, num: int):
-        out = []
-        for _ in list(range(num)):
-            item = self.pop()
-            if isinstance(item, list):
-                out.append(
-                    recursive_filter(item, lambda x: not isinstance(x, ListTerminators))
-                )
-            else:
-                out.append(item)
-
-        return self.get_state(out)
-
-    def push(self, item):
-        if isinstance(item, list):
-            self.stack.extend(reversed(item))
-        else:
-            self.stack.append(item)
-
-    def pop(self):
-        if not self.stack:
-            return None
-
-        if self.stack[-1] is not ListTerminators.LISTSTART:
-            return self.stack.pop()
-
-        out = [self.stack.pop()]
-        while True:
-            curr = self.pop()
-            out.append(curr)
-            if curr is ListTerminators.LISTEND:
-                break
-        return out
-
-    def run(self, instructions: QutipBackendInstructions):
-        for instruction in instructions.instructions:
-            opcode = instruction.opcode.name
-            args = instruction.args
-            getattr(self, f"run_{opcode}")(*args)
-
-    def run_GLOBAL(self, name):
-        if name not in self.store:
-            self.store[name] = None
-
-    def run_CONST(self, value):
-        self.push(value)
-
-    def run_STORE(self, name):
-        self.store[name] = self.pop()
-
-    def run_LOAD(self, name):
-        if isinstance(name, ALIAS):
-            self.run_LOAD(name.target)
-        if isinstance(name, RegisterObject):
-            self.push(self.registers[name])
-        if name in self.store:
-            item = self.store[name]
-            self.push(item)
-        else:
-            raise ValueError
-
-    def run_FUNC(self, func):
+class ArithmeticMixin:
+    def run_FUNC(self, func, stack, store, registers):
         output = None
         operation = getattr(math, func, None)
         if operation is None:
@@ -182,79 +106,106 @@ class QutipVM:
 
         match func:
             case "abs":
-                output = abs(self.get_args(1)[0])
+                output = abs(stack.pop())
             case "heaviside":
-                output = np.heaviside(self.get_args(1)[0], 0)
+                output = np.heaviside(stack.pop(), 0)
             case "atan2":
-                args = self.get_args(2)
-                x = args[0]
-                y = args[1]
+                x = stack.pop()
+                y = stack.pop()
                 output = operation(y, x)
             case _:
-                output = operation(self.get_args(1)[0])
-        self.push(output)
+                output = operation(stack.pop())
+        stack.push(output)
 
-    def run_ADD(self):
-        self.push(self.pop() + self.pop())
+    def run_ADD(self, stack, store, registers):
+        stack.push(stack.pop() + stack.pop())
 
-    def run_SUB(self):
-        self.push(-self.pop() + self.pop())
+    def run_SUB(self, stack, store, registers):
+        stack.push(-stack.pop() + stack.pop())
 
-    def run_MUL(self):
-        self.push(self.pop() * self.pop())
+    def run_MUL(self, stack, store, registers):
+        stack.push(stack.pop() * stack.pop())
 
-    def run_DIV(self):
-        denom = self.pop()
-        num = self.pop()
-        self.push(num / denom)
+    def run_DIV(self, stack, store, registers):
+        denom = stack.pop()
+        num = stack.pop()
+        stack.push(num / denom)
 
-    def run_POW(self):
-        exponent = self.pop()
-        base = self.pop()
-        self.push(base**exponent)
+    def run_POW(self, stack, store, registers):
+        exponent = stack.pop()
+        base = stack.pop()
+        stack.push(base**exponent)
 
-    def run_KRON(self):
-        op2 = self.pop()
-        op1 = self.pop()
-        self.push(qt.tensor(op1, op2))
 
-    def run_NOT(self):
-        self.push(not self.pop())
+class BoolMixin:
+    def run_NOT(self, stack, store, registers):
+        stack.push(not stack.pop())
 
-    def run_AND(self):
-        self.push(self.pop() and self.pop())
+    def run_AND(self, stack, store, registers):
+        stack.push(stack.pop() and stack.pop())
 
-    def run_OR(self):
-        self.push(self.pop() or self.pop())
+    def run_OR(self, stack, store, registers):
+        stack.push(stack.pop() or stack.pop())
 
-    def run_EQ(self):
-        self.push(self.pop() == self.pop())
+    def run_EQ(self, stack, store, registers):
+        stack.push(stack.pop() == stack.pop())
 
-    def run_NEQ(self):
-        self.push(self.pop() != self.pop())
+    def run_NEQ(self, stack, store, registers):
+        stack.push(stack.pop() != stack.pop())
 
-    def run_LT(self):
-        rhs = self.pop()
-        lhs = self.pop()
-        self.push(lhs < rhs)
+    def run_LT(self, stack, store, registers):
+        rhs = stack.pop()
+        lhs = stack.pop()
+        stack.push(lhs < rhs)
 
-    def run_LTEQ(self):
-        rhs = self.pop()
-        lhs = self.pop()
-        self.push(lhs <= rhs)
+    def run_LTEQ(self, stack, store, registers):
+        rhs = stack.pop()
+        lhs = stack.pop()
+        stack.push(lhs <= rhs)
 
-    def run_GT(self):
-        rhs = self.pop()
-        lhs = self.pop()
-        self.push(lhs > rhs)
+    def run_GT(self, stack, store, registers):
+        rhs = stack.pop()
+        lhs = stack.pop()
+        stack.push(lhs > rhs)
 
-    def run_GTEQ(self):
-        rhs = self.pop()
-        lhs = self.pop()
-        self.push(lhs >= rhs)
+    def run_GTEQ(self, stack, store, registers):
+        rhs = stack.pop()
+        lhs = stack.pop()
+        stack.push(lhs >= rhs)
 
-    def run_INIT(self):
-        targets = self.get_args(1)[0]
+
+class QutipMixin:
+    def _new_register(self, state):
+        return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
+
+    def run_GLOBAL(self, name, stack, store, registers):
+        if name not in store:
+            store[name] = None
+
+    def run_CONST(self, value, stack, store, registers):
+        stack.push(value)
+
+    def run_STORE(self, name, stack, store, registers):
+        store[name] = stack.pop()
+
+    def run_LOAD(self, name, stack, store, registers):
+        if isinstance(name, ALIAS):
+            self.run_LOAD(name.target, stack, store, registers)
+        if isinstance(name, RegisterObject):
+            stack.push(registers[name])
+        if name in store:
+            item = store[name]
+            stack.push(item)
+        else:
+            raise ValueError
+
+    def run_KRON(self, stack, store, registers):
+        op2 = stack.pop()
+        op1 = stack.pop()
+        stack.push(qt.tensor(op1, op2))
+
+    def run_INIT(self, stack, store, registers):
+        targets = self.get_args(1, stack, store, registers)[0]
         qubits = []
         actual_qubits = []
         if not isinstance(targets, list):
@@ -266,14 +217,15 @@ class QutipVM:
 
         for target in targets:
             if isinstance(target, QubitObject):
-                target.state = qt.Qobj([1, 0])
+                target.state = qt.basis(2, 0)
             elif isinstance(target, ModeObject):
-                target.state = qt.Qobj([self._fock_cutoff, 0])
+                target.state = qt.basis(self._fock_cutoff, 0)
             target.time = self.GLOBAL_T
-        self.push(QutipVMNULL)
 
-    def run_MEASURE(self):
-        targets = self.get_args(1)[0]
+        stack.push(QutipVMNULL)
+
+    def run_MEASURE(self, stack, store, registers):
+        targets = self.get_args(1, stack, store, registers)[0]
         if not isinstance(targets, list):
             targets = [targets]
 
@@ -288,7 +240,6 @@ class QutipVM:
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
             n_shots = self._n_shots
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            # print(inds)
             h_dims = 2
             if isinstance(target, ModeObject):
                 h_dims = self._fock_cutoff
@@ -300,39 +251,40 @@ class QutipVM:
                 bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
             }
 
-        self.push(counts)
+        stack.push(counts)
 
-    def run_EXTRACT(self, name, index):
+    def run_EXTRACT(self, name, index, stack, store, registers):
         if isinstance(name, ALIAS):
-            self.push(RegisterObject(name=name.target, index=index))
+            stack.push(RegisterObject(name=name.target, index=index))
         else:
-            self.push(RegisterObject(name=name, index=index))
+            stack.push(RegisterObject(name=name, index=index))
 
-    def run_QREG(self, name, size):
-        self.store[name] = [ListTerminators.LISTSTART]
+    def run_QREG(self, name, size, stack, store, registers):
+        store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
             obj = QubitObject(
                 name=RegisterObject(name=name, index=n),
                 time=self.GLOBAL_T,
                 state=[],
             )
-            self.registers[obj.name] = obj
-            self.store[name].append(obj.name)
-        self.store[name].append(ListTerminators.LISTEND)
+            registers[obj.name] = obj
+            store[name].append(obj.name)
+        store[name].append(ListTerminators.LISTEND)
 
-    def run_MREG(self, name, size):
-        self.store[name] = [ListTerminators.LISTSTART]
+    def run_MREG(self, name, size, stack, store, registers):
+        store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
             obj = ModeObject(
                 name=RegisterObject(name=name, index=n),
                 time=self.GLOBAL_T,
                 state=[],
             )
-            self.registers[obj.name] = obj
-            self.store[name].append(obj.name)
-        self.store[name].append(ListTerminators.LISTEND)
+            registers[obj.name] = obj
+            store[name].append(obj.name)
+        store[name].append(ListTerminators.LISTEND)
 
-    # Pads the hamiltonian with additional dimensions if required and reorders states
+        # Pads the hamiltonian with additional dimensions if required and reorders states
+
     def _pad(self, hamiltonian, targets):
         qubits, targets = (
             zip(*targets) if isinstance(targets, list) else zip(*[targets])
@@ -340,11 +292,7 @@ class QutipVM:
         targets, qubits = list(targets), list(qubits)
 
         _targets = map(
-            lambda x: (
-                (x.name, x.state)
-                if isinstance(x, QubitObject)
-                else (x.name, x.state)
-            ),
+            lambda x: (x.name, x.state),
             set(targets),
         )
 
@@ -374,8 +322,8 @@ class QutipVM:
 
         return states, padded_hamiltonian, padded_qubits
 
-    def run_EVOLVE(self):
-        args = self.get_args(3)
+    def run_EVOLVE(self, stack, store, registers):
+        args = self.get_args(3, stack, store, registers)
         targets = args[0]
 
         duration = args[1]
@@ -391,7 +339,6 @@ class QutipVM:
                 )
             )
             hamiltonian = compiler_pass(hamiltonian)
-            # print(f"hamiltonian after pass: " + str(hamiltonian))
 
         states, padded_hamiltonian, reordered_qubits = self._pad(hamiltonian, targets)
 
@@ -402,10 +349,10 @@ class QutipVM:
             tspan,
             options={"store_states": True},
         )
-        # print(self.results.runtime)
+
         elapsed_time = time.time() - start_runtime
         for target in reordered_qubits:
-            self.registers[target].time += elapsed_time
+            registers[target].time += elapsed_time
 
         self.GLOBAL_T += duration
         # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
@@ -413,10 +360,10 @@ class QutipVM:
         # for idx, key in enumerate(self.results.metrics.keys()):
         #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
 
-        qreg = self.new_register(result_qobj.final_state)
+        qreg = self._new_register(result_qobj.final_state)
 
         for target in reordered_qubits:
-            target = self.registers[target]
+            target = registers[target]
             if isinstance(target, QubitObject):
                 if target.name not in qreg.name:
                     qreg.name.append(target.name)
@@ -426,15 +373,123 @@ class QutipVM:
                         qreg.name.append(name)
 
         for target in reordered_qubits:
-            target = self.registers[target]
+            target = registers[target]
             if isinstance(target, QubitObject):
-                self.registers[target.name] = qreg
+                registers[target.name] = qreg
             elif isinstance(target, QubitRegister):
                 for name in target.name:
-                    self.registers[name] = qreg
+                    registers[name] = qreg
 
         # self.push(result_qobj.final_state.full().squeeze())
-        self.push(QutipVMNULL)
+        stack.push(QutipVMNULL)
+
+
+class DynamicsMixin:
+    pass
+
+
+class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
+    def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
+        self._n_shots = n_shots
+        self._fock_cutoff = fock_cutoff
+        self._dt = dt
+        self.GLOBAL_T = 0.0
+
+    def get_state(self, return_values, stack, store, registers):
+        if not isinstance(return_values, list):
+            return return_values
+        out = []
+        for value in return_values:
+            if isinstance(value, ListTerminators):
+                continue
+            if isinstance(value, list):
+                out.append(self.get_state(value, stack, store, registers))
+            elif isinstance(value, RegisterObject):
+                out.append((value, registers[value]))
+            else:
+                out.append(value)
+        return out
+
+    def get_args(self, num, stack, store, registers):
+        out = []
+        for _ in list(range(num)):
+            item = stack.pop()
+            if isinstance(item, list):
+                out.append(
+                    recursive_filter(item, lambda x: not isinstance(x, ListTerminators))
+                )
+            else:
+                out.append(item)
+        return self.get_state(out, stack, store, registers)
+
+    def run(self, opcode, args, stack, store, registers):
+        getattr(self, f"run_{opcode}")(*args, stack, store, registers)
+
+
+class QutipVMStack(VisitableBaseModel):
+    def __init__(self):
+        self.__index = []
+
+    def __len__(self):
+        return len(self.__index)
+
+    def __str__(self):
+        return str(self.__index)
+
+    def peek(self):
+        if len(self) == 0:
+            return None
+        return self.__index[-1]
+
+    def push(self, item):
+        if isinstance(item, list):
+            self.__index.extend(reversed(item))
+        else:
+            self.__index.append(item)
+
+    def pop(self):
+        if len(self) == 0:
+            return None
+
+        if self.peek() is not ListTerminators.LISTSTART:
+            return self.__index.pop()
+
+        out = [self.__index.pop()]
+        while True:
+            curr = self.pop()
+            out.append(curr)
+            if curr is ListTerminators.LISTEND:
+                break
+        return out
+
+
+class QutipVM:
+    def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
+        self.stack = QutipVMStack()
+        self.store = {}
+        self.registers = {}
+
+        self.history = {}
+        self.method_table = QutipMethodTable(
+            n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt
+        )
+
+    def get_state(self, return_values):
+        return self.method_table.get_state(
+            return_values, self.stack, self.store, self.registers
+        )
+
+    def run(self, instructions: QutipBackendInstructions):
+        for instruction in instructions.instructions:
+            opcode = instruction.opcode.name
+            args = instruction.args
+            self.method_table.run(
+                opcode=opcode,
+                args=args,
+                stack=self.stack,
+                store=self.store,
+                registers=self.registers,
+            )
 
 
 class QutipInterpreter:
@@ -459,7 +514,6 @@ class QutipInterpreter:
 
     def evaluate(self, stmt):
         instructions = self.codegen(stmt)
-        # print(instructions)
         self.INSTRUCTIONS.append(instructions)
         self.vm.run(instructions)
 
@@ -472,7 +526,7 @@ class QutipInterpreter:
 
             if current_block.kind == "branch":
                 self.evaluate(stmt)
-                cond = self.vm.pop()
+                cond = self.vm.stack.pop()
                 if cond:
                     node = next(
                         key
@@ -488,21 +542,19 @@ class QutipInterpreter:
 
             if current_block.kind == "stmt":
                 if not current_block.edge_labels and stmt:
-                    # print(stmt)
                     self.evaluate(stmt)
                 if current_block.succs:
                     current_block = current_block.succs[0]
                     continue
-            # print(node)
             current_block = self.get_block(node)
 
-        stack_top = self.vm.pop()
+        stack_top = self.vm.stack.pop()
         if stack_top is None:
             return []
         return self.get_state(stack_top)
 
-    def status(self):
-        return self.vm.get_store()
+    def get_store(self):
+        return self.vm.store
 
     def get_state(self, return_values):
         return self.vm.get_state(return_values)
