@@ -94,6 +94,7 @@ def recursive_filter(l, cond):
         )
     )
 
+
 class ArithmeticMixin:
     def run_FUNC(self, func, stack, store, registers):
         output = None
@@ -102,7 +103,7 @@ class ArithmeticMixin:
             operation = getattr(np, func, None)
         if operation is None:
             raise ValueError("Unknown math function")
-    
+
         match func:
             case "abs":
                 output = abs(stack.pop())
@@ -115,67 +116,68 @@ class ArithmeticMixin:
             case _:
                 output = operation(stack.pop())
         stack.push(output)
-    
+
     def run_ADD(self, stack, store, registers):
         stack.push(stack.pop() + stack.pop())
-    
+
     def run_SUB(self, stack, store, registers):
         stack.push(-stack.pop() + stack.pop())
-    
+
     def run_MUL(self, stack, store, registers):
         stack.push(stack.pop() * stack.pop())
-    
+
     def run_DIV(self, stack, store, registers):
         denom = stack.pop()
         num = stack.pop()
         stack.push(num / denom)
-    
+
     def run_POW(self, stack, store, registers):
         exponent = stack.pop()
         base = stack.pop()
         stack.push(base**exponent)
 
+
 class BoolMixin:
     def run_NOT(self, stack, store, registers):
         stack.push(not stack.pop())
-    
+
     def run_AND(self, stack, store, registers):
         stack.push(stack.pop() and stack.pop())
-    
+
     def run_OR(self, stack, store, registers):
         stack.push(stack.pop() or stack.pop())
-    
+
     def run_EQ(self, stack, store, registers):
         stack.push(stack.pop() == stack.pop())
-    
+
     def run_NEQ(self, stack, store, registers):
         stack.push(stack.pop() != stack.pop())
-    
+
     def run_LT(self, stack, store, registers):
         rhs = stack.pop()
         lhs = stack.pop()
         stack.push(lhs < rhs)
-    
+
     def run_LTEQ(self, stack, store, registers):
         rhs = stack.pop()
         lhs = stack.pop()
         stack.push(lhs <= rhs)
-    
+
     def run_GT(self, stack, store, registers):
         rhs = stack.pop()
         lhs = stack.pop()
         stack.push(lhs > rhs)
-    
+
     def run_GTEQ(self, stack, store, registers):
         rhs = stack.pop()
         lhs = stack.pop()
         stack.push(lhs >= rhs)
 
+
 class QutipMixin:
-    
     def _new_register(self, state):
         return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
-    
+
     def run_GLOBAL(self, name, stack, store, registers):
         if name not in store:
             store[name] = None
@@ -215,11 +217,11 @@ class QutipMixin:
 
         for target in targets:
             if isinstance(target, QubitObject):
-                target.state = qt.Qobj([1, 0])
+                target.state = qt.basis(2, 0)
             elif isinstance(target, ModeObject):
-                target.state = qt.Qobj([self._fock_cutoff, 0])
+                target.state = qt.basis(self._fock_cutoff, 0)
             target.time = self.GLOBAL_T
-        
+
         stack.push(QutipVMNULL)
 
     def run_MEASURE(self, stack, store, registers):
@@ -282,6 +284,7 @@ class QutipMixin:
         store[name].append(ListTerminators.LISTEND)
 
         # Pads the hamiltonian with additional dimensions if required and reorders states
+
     def _pad(self, hamiltonian, targets):
         qubits, targets = (
             zip(*targets) if isinstance(targets, list) else zip(*[targets])
@@ -289,11 +292,7 @@ class QutipMixin:
         targets, qubits = list(targets), list(qubits)
 
         _targets = map(
-            lambda x: (
-                (x.name, x.state)
-                if isinstance(x, QubitObject)
-                else (x.name, x.state)
-            ),
+            lambda x: (x.name, x.state),
             set(targets),
         )
 
@@ -322,7 +321,7 @@ class QutipMixin:
         states = states.permute(permute_order)
 
         return states, padded_hamiltonian, padded_qubits
-    
+
     def run_EVOLVE(self, stack, store, registers):
         args = self.get_args(3, stack, store, registers)
         targets = args[0]
@@ -350,7 +349,7 @@ class QutipMixin:
             tspan,
             options={"store_states": True},
         )
-        
+
         elapsed_time = time.time() - start_runtime
         for target in reordered_qubits:
             registers[target].time += elapsed_time
@@ -383,10 +382,11 @@ class QutipMixin:
 
         # self.push(result_qobj.final_state.full().squeeze())
         stack.push(QutipVMNULL)
-    
+
 
 class DynamicsMixin:
     pass
+
 
 class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
     def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
@@ -394,7 +394,7 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
         self._fock_cutoff = fock_cutoff
         self._dt = dt
         self.GLOBAL_T = 0.0
-    
+
     def get_state(self, return_values, stack, store, registers):
         if not isinstance(return_values, list):
             return return_values
@@ -421,8 +421,7 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
             else:
                 out.append(item)
         return self.get_state(out, stack, store, registers)
-    
-    
+
     def run(self, opcode, args, stack, store, registers):
         getattr(self, f"run_{opcode}")(*args, stack, store, registers)
 
@@ -430,18 +429,18 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
 class QutipVMStack(VisitableBaseModel):
     def __init__(self):
         self.__index = []
-        
+
     def __len__(self):
         return len(self.__index)
-    
+
     def __str__(self):
         return str(self.__index)
-    
+
     def peek(self):
         if len(self) == 0:
             return None
         return self.__index[-1]
-    
+
     def push(self, item):
         if isinstance(item, list):
             self.__index.extend(reversed(item))
@@ -469,20 +468,29 @@ class QutipVM:
         self.stack = QutipVMStack()
         self.store = {}
         self.registers = {}
-        
+
         self.history = {}
-        self.method_table = QutipMethodTable(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
-    
+        self.method_table = QutipMethodTable(
+            n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt
+        )
+
     def get_state(self, return_values):
-        return self.method_table.get_state(return_values, self.stack, self.store, self.registers)
+        return self.method_table.get_state(
+            return_values, self.stack, self.store, self.registers
+        )
 
     def run(self, instructions: QutipBackendInstructions):
         for instruction in instructions.instructions:
             opcode = instruction.opcode.name
             args = instruction.args
-            self.method_table.run(opcode=opcode, args=args, stack=self.stack,
-                            store=self.store, registers= self.registers)
-            
+            self.method_table.run(
+                opcode=opcode,
+                args=args,
+                stack=self.stack,
+                store=self.store,
+                registers=self.registers,
+            )
+
 
 class QutipInterpreter:
     def __init__(
