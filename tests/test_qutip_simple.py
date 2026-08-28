@@ -18,7 +18,6 @@ import pytest
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
 
-
 def interpreter(program):
     backend = QutipBackend()
     program, _, output = backend.run(program)
