@@ -22,7 +22,6 @@ nav:
       - QuTip Simulation: explanation/qutip-simulation.md
   - API Reference:
       - Qutip: reference/qutip_backend.md
-      - Compilation: reference/qutip_compiler.md
 
 theme:
   name: material

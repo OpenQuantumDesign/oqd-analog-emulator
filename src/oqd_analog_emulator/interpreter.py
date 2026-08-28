@@ -15,13 +15,13 @@
 import itertools
 import math
 import time
+from typing import List
 
 import numpy as np
 import qutip as qt
-from oqd_compiler_infrastructure import Post
+from oqd_compiler_infrastructure import Post, VisitableBaseModel
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
-from pydantic import BaseModel
 
 from oqd_analog_emulator.instructions import (
     ALIAS,
@@ -32,7 +32,7 @@ from oqd_analog_emulator.instructions import (
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 
 
-class RegisterObject(BaseModel):
+class RegisterObject(VisitableBaseModel):
     name: str
     index: int
 
@@ -40,35 +40,41 @@ class RegisterObject(BaseModel):
         return hash((self.name, self.index))
 
 
-class QubitObject:
-    register: RegisterObject
-    time: int
+class QubitObject(VisitableBaseModel):
+    name: RegisterObject
+    time: float
     state: object
 
+    def __hash__(self):
+        return hash(self.name)
 
-class QubitRegister:
-    register: list[RegisterObject] = []
-    time: int
+
+class QubitRegister(VisitableBaseModel):
+    name: List[RegisterObject] = []
+    time: float
     state: object
+
+    def __hash__(self):
+        return hash(tuple(self.name))
 
     @property
     def n(self):
-        return len(self.register)
+        return len(self.name)
 
 
-class ModeObject:
-    register: RegisterObject
-    time: int
+class ModeObject(VisitableBaseModel):
+    name: RegisterObject
+    time: float
     state: object
 
 
 QutipVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
 
-def recursive_filter(l, cond):
+def recursive_filter(lst, cond):
     return list(
         map(
-            lambda x: recursive_filter(x) if isinstance(x, list) else x, filter(cond, l)
+            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x, filter(cond, lst)
         )
     )
 
@@ -84,10 +90,13 @@ class QutipVM:
         self.GLOBAL_T = 0.0
         self.history = {}
 
+    def new_register(self, state):
+        return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
+
     def get_store(self):
         return self.store
 
-    def get_state(self, return_values, *, verbose=False):
+    def get_state(self, return_values):
         if not isinstance(return_values, list):
             return return_values
         out = []
@@ -95,31 +104,24 @@ class QutipVM:
             if isinstance(value, ListTerminators):
                 continue
             if isinstance(value, list):
-                out.append(self.get_state(value, verbose=verbose))
+                out.append(self.get_state(value))
             elif isinstance(value, RegisterObject):
-                out.append(
-                    (value, self.registers[value]) if verbose else self.registers[value]
-                )
+                out.append((value, self.registers[value]))
             else:
                 out.append(value)
         return out
 
-    def get_args(
-        self,
-        num: int,
-    ):
+    def get_args(self, num: int):
         out = []
         for _ in list(range(num)):
             item = self.pop()
-            if isinstance(item, RegisterObject):
-                out.append([self.registers[item]])
-            elif isinstance(item, list):
+            if isinstance(item, list):
                 out.append(
                     recursive_filter(item, lambda x: not isinstance(x, ListTerminators))
                 )
             else:
                 out.append(item)
-        # print(self.get_state(out))
+
         return self.get_state(out)
 
     def push(self, item):
@@ -253,6 +255,15 @@ class QutipVM:
 
     def run_INIT(self):
         targets = self.get_args(1)[0]
+        qubits = []
+        actual_qubits = []
+        if not isinstance(targets, list):
+            targets = [targets]
+        for target, name in targets:
+            qubits.append(target)
+            actual_qubits.append(name)
+        targets = actual_qubits
+
         for target in targets:
             if isinstance(target, QubitObject):
                 target.state = qt.Qobj([1, 0])
@@ -263,6 +274,15 @@ class QutipVM:
 
     def run_MEASURE(self):
         targets = self.get_args(1)[0]
+        if not isinstance(targets, list):
+            targets = [targets]
+
+        qubits = []
+        actual_qubits = []
+        for target, name in targets:
+            qubits.append(target)
+            actual_qubits.append(name)
+        targets = actual_qubits
         counts = {}
         for ind, target in enumerate(targets):
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
@@ -291,66 +311,75 @@ class QutipVM:
     def run_QREG(self, name, size):
         self.store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            obj = QubitObject()
-            obj.register = RegisterObject(name=name, index=n)
-            obj.time = self.GLOBAL_T
-            obj.state = []
-            self.registers[obj.register] = obj
-            self.store[name].append(obj.register)
+            obj = QubitObject(
+                name=RegisterObject(name=name, index=n),
+                time=self.GLOBAL_T,
+                state=[],
+            )
+            self.registers[obj.name] = obj
+            self.store[name].append(obj.name)
         self.store[name].append(ListTerminators.LISTEND)
 
     def run_MREG(self, name, size):
         self.store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            obj = ModeObject()
-            obj.register = RegisterObject(name=name, index=n)
-            obj.time = self.GLOBAL_T
-            obj.state = []
-            self.registers[obj.register] = obj
-            self.store[name].append(obj.register)
+            obj = ModeObject(
+                name=RegisterObject(name=name, index=n),
+                time=self.GLOBAL_T,
+                state=[],
+            )
+            self.registers[obj.name] = obj
+            self.store[name].append(obj.name)
         self.store[name].append(ListTerminators.LISTEND)
 
     # Pads the hamiltonian with additional dimensions if required and reorders states
     def _pad(self, hamiltonian, targets):
+        qubits, targets = (
+            zip(*targets) if isinstance(targets, list) else zip(*[targets])
+        )
+        targets, qubits = list(targets), list(qubits)
+
+        _targets = map(
+            lambda x: (
+                (x.name, x.state)
+                if isinstance(x, QubitObject)
+                else (x.name, x.state)
+            ),
+            set(targets),
+        )
+
+        all_qubits = []
         states = []
-        state_dims = 0
-        for target in targets:
-            states += [target.state]
-            # print(f"target type: " + str(type(target)))
-            if isinstance(target, QubitRegister):
-                # print(target.qubits)
-                state_dims += target.n
+        for q, s in _targets:
+            states.append(s)
+
+            if isinstance(q, list):
+                all_qubits.extend(q)
             else:
-                # print(target.name)
-                state_dims += 1
+                all_qubits.append(q)
+
         h_dims = hamiltonian.dims[0]
-        # print("state_dims are:")
-        # print(state_dims)
-        # print("h dims are:")
-        # print(h_dims)
-        diff = state_dims - len(h_dims)
+        diff = len(all_qubits) - len(h_dims)
 
-        for _ in list(range(diff)):
-            # h_dims[0] *= h_dims[1]
-            hamiltonian = qt.tensor(qt.qeye(2), hamiltonian)
+        padded_hamiltonian = qt.tensor(
+            *[qt.qeye(2) for _ in list(range(diff))], hamiltonian
+        )
 
-        states = qt.tensor(states)
+        # Calculate State
+        padded_qubits = [*set(all_qubits).difference(qubits), *qubits]
+        permute_order = [all_qubits.index(x) for x in padded_qubits]
 
-        # print("Hamiltonian: ")
-        # print(hamiltonian)
-        # print("state: ")
-        # print(states)
+        states = qt.tensor(*states)
+        states = states.permute(permute_order)
 
-        return states, hamiltonian
+        return states, padded_hamiltonian, padded_qubits
 
     def run_EVOLVE(self):
         args = self.get_args(3)
         targets = args[0]
-        # print(f"targets: " + str(targets))
+
         duration = args[1]
-        # print(f"duration: " + str(duration))
         hamiltonian = args[2]
-        # print(f"hamiltonian: " + str(hamiltonian))
 
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
         # results = {}
@@ -364,19 +393,19 @@ class QutipVM:
             hamiltonian = compiler_pass(hamiltonian)
             # print(f"hamiltonian after pass: " + str(hamiltonian))
 
-        states, hamiltonian = self._pad(hamiltonian, targets)
+        states, padded_hamiltonian, reordered_qubits = self._pad(hamiltonian, targets)
 
         start_runtime = time.time()
         result_qobj = qt.sesolve(
-            hamiltonian,
+            padded_hamiltonian,
             states,  # Tensor product
             tspan,
             options={"store_states": True},
         )
         # print(self.results.runtime)
         elapsed_time = time.time() - start_runtime
-        for target in targets:
-            target.time += elapsed_time
+        for target in reordered_qubits:
+            self.registers[target].time += elapsed_time
 
         self.GLOBAL_T += duration
         # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
@@ -384,28 +413,27 @@ class QutipVM:
         # for idx, key in enumerate(self.results.metrics.keys()):
         #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
 
-        # target.state = result_qobj.final_state
-        # results = result_qobj.final_state.full().squeeze()
+        qreg = self.new_register(result_qobj.final_state)
 
-        qreg = QubitRegister()
-        qreg.time = self.GLOBAL_T
-        qreg.state = result_qobj.final_state
-        for target in targets:
+        for target in reordered_qubits:
+            target = self.registers[target]
             if isinstance(target, QubitObject):
-                if target.register not in qreg.register:
-                    qreg.register.append(target.register)
+                if target.name not in qreg.name:
+                    qreg.name.append(target.name)
             elif isinstance(target, QubitRegister):
-                for register in target.register:
-                    if register not in qreg.register:
-                        qreg.register.append(register)
+                for name in target.name:
+                    if name not in qreg.name:
+                        qreg.name.append(name)
 
-        for target in targets:
+        for target in reordered_qubits:
+            target = self.registers[target]
             if isinstance(target, QubitObject):
-                self.registers[target.register] = qreg
+                self.registers[target.name] = qreg
             elif isinstance(target, QubitRegister):
-                for register in target.register:
-                    self.registers[register] = qreg
+                for name in target.name:
+                    self.registers[name] = qreg
 
+        # self.push(result_qobj.final_state.full().squeeze())
         self.push(QutipVMNULL)
 
 
@@ -477,7 +505,7 @@ class QutipInterpreter:
         return self.vm.get_store()
 
     def get_state(self, return_values):
-        return self.vm.get_state(return_values, verbose=True)
+        return self.vm.get_state(return_values)
 
     def get_instructions(self):
         return self.INSTRUCTIONS
