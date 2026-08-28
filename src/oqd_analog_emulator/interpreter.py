@@ -87,10 +87,10 @@ class ModeRegister(VisitableBaseModel):
 QutipVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
 
-def recursive_filter(l, cond):
+def recursive_filter(lst, cond):
     return list(
         map(
-            lambda x: recursive_filter(x) if isinstance(x, list) else x, filter(cond, l)
+            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x, filter(cond, lst)
         )
     )
 

@@ -52,7 +52,7 @@ class QutipBackend(BackendBase):
 
         return program
 
-    def run(self, program: str | AnalogProgram = None):
+    def run(self, program: str | AnalogProgram = None, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1,):
         """
         Method to simulate an experiment using the QuTip backend
 
