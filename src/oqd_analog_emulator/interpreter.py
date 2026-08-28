@@ -203,7 +203,6 @@ class QutipMixin:
         stack.push(qt.tensor(op1, op2))
 
     def run_INIT(self, stack, store, registers):
-        print("INIT")
         targets = self.get_args(1, stack, store, registers)[0]
         qubits = []
         actual_qubits = []
@@ -239,7 +238,6 @@ class QutipMixin:
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
             n_shots = self._n_shots
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            # print(inds)
             h_dims = 2
             if isinstance(target, ModeObject):
                 h_dims = self._fock_cutoff
@@ -258,7 +256,6 @@ class QutipMixin:
             stack.push(RegisterObject(name=name.target, index=index))
         else:
             stack.push(RegisterObject(name=name, index=index))
-        # print(stack)
 
     def run_QREG(self, name, size, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
@@ -271,8 +268,6 @@ class QutipMixin:
             registers[obj.name] = obj
             store[name].append(obj.name)
         store[name].append(ListTerminators.LISTEND)
-        # print(store[name])
-        # print(registers)
 
     def run_MREG(self, name, size, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
@@ -345,7 +340,6 @@ class QutipMixin:
                 )
             )
             hamiltonian = compiler_pass(hamiltonian)
-            # print(f"hamiltonian after pass: " + str(hamiltonian))
 
         states, padded_hamiltonian, reordered_qubits = self._pad(hamiltonian, targets)
 
@@ -356,7 +350,7 @@ class QutipMixin:
             tspan,
             options={"store_states": True},
         )
-        # print(self.results.runtime)
+        
         elapsed_time = time.time() - start_runtime
         for target in reordered_qubits:
             registers[target].time += elapsed_time
@@ -426,7 +420,6 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
                 )
             else:
                 out.append(item)
-        # print("GET ARGS")
         return self.get_state(out, stack, store, registers)
     
     
@@ -487,7 +480,6 @@ class QutipVM:
         for instruction in instructions.instructions:
             opcode = instruction.opcode.name
             args = instruction.args
-            # print("ARGS", args)
             self.method_table.run(opcode=opcode, args=args, stack=self.stack,
                             store=self.store, registers= self.registers)
             
@@ -514,7 +506,6 @@ class QutipInterpreter:
 
     def evaluate(self, stmt):
         instructions = self.codegen(stmt)
-        # print(instructions)
         self.INSTRUCTIONS.append(instructions)
         self.vm.run(instructions)
 
@@ -543,12 +534,10 @@ class QutipInterpreter:
 
             if current_block.kind == "stmt":
                 if not current_block.edge_labels and stmt:
-                    # print(stmt)
                     self.evaluate(stmt)
                 if current_block.succs:
                     current_block = current_block.succs[0]
                     continue
-            # print(node)
             current_block = self.get_block(node)
 
         stack_top = self.vm.stack.pop()
