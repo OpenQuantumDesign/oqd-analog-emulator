@@ -70,7 +70,7 @@ class QutipBackend(BackendBase):
 
         cfg = program.cfg
 
-        interpreter = QutipInterpreter(graph=cfg)
+        interpreter = QutipInterpreter(graph=cfg, n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
         output = interpreter.run()
 
         return program, interpreter, output

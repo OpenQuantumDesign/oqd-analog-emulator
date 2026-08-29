@@ -32,7 +32,7 @@ from oqd_analog_emulator.instructions import (
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 
 
-class RegisterObject(VisitableBaseModel):
+class QubitName(VisitableBaseModel):
     name: str
     index: int
 
@@ -40,41 +40,11 @@ class RegisterObject(VisitableBaseModel):
         return hash((self.name, self.index))
 
 
-class QubitObject(VisitableBaseModel):
-    name: RegisterObject
-    time: float
-    state: object
-
-    def __hash__(self):
-        return hash(self.name)
-
-
 class QubitRegister(VisitableBaseModel):
-    name: List[RegisterObject] = []
+    name: List[QubitName] = []
     time: float
     state: object
-
-    def __hash__(self):
-        return hash(tuple(self.name))
-
-    @property
-    def n(self):
-        return len(self.name)
-
-
-class ModeObject(VisitableBaseModel):
-    name: RegisterObject
-    time: float
-    state: object
-
-    def __hash__(self):
-        return hash(self.name)
-
-
-class ModeRegister(VisitableBaseModel):
-    name: List[RegisterObject] = []
-    time: float
-    state: object
+    dims: int
 
     def __hash__(self):
         return hash(tuple(self.name))
@@ -175,8 +145,8 @@ class BoolMixin:
 
 
 class QutipMixin:
-    def _new_register(self, state):
-        return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
+    def _new_register(self, name, state, dims):
+        return QubitRegister(name=name, time=self.GLOBAL_T, state=state, dims=dims)
 
     def run_GLOBAL(self, name, stack, store, registers):
         if name not in store:
@@ -191,7 +161,7 @@ class QutipMixin:
     def run_LOAD(self, name, stack, store, registers):
         if isinstance(name, ALIAS):
             self.run_LOAD(name.target, stack, store, registers)
-        if isinstance(name, RegisterObject):
+        if isinstance(name, QubitName):
             stack.push(registers[name])
         if name in store:
             item = store[name]
@@ -216,10 +186,7 @@ class QutipMixin:
         targets = actual_qubits
 
         for target in targets:
-            if isinstance(target, QubitObject):
-                target.state = qt.basis(2, 0)
-            elif isinstance(target, ModeObject):
-                target.state = qt.basis(self._fock_cutoff, 0)
+            target.state = qt.basis(target.dims, 0)
             target.time = self.GLOBAL_T
 
         stack.push(QutipVMNULL)
@@ -240,9 +207,7 @@ class QutipMixin:
             probs = np.power(np.abs(target.state.full()), 2).squeeze()
             n_shots = self._n_shots
             inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            h_dims = 2
-            if isinstance(target, ModeObject):
-                h_dims = self._fock_cutoff
+            h_dims = target.dims
             opts = len(targets) * [list(range(h_dims))]
             bases = list(itertools.product(*opts))
             shots = np.array([bases[ind] for ind in inds])
@@ -255,32 +220,34 @@ class QutipMixin:
 
     def run_EXTRACT(self, name, index, stack, store, registers):
         if isinstance(name, ALIAS):
-            stack.push(RegisterObject(name=name.target, index=index))
+            stack.push(QubitName(name=name.target, index=index))
         else:
-            stack.push(RegisterObject(name=name, index=index))
+            stack.push(QubitName(name=name, index=index))
 
     def run_QREG(self, name, size, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            obj = QubitObject(
-                name=RegisterObject(name=name, index=n),
-                time=self.GLOBAL_T,
+            qubit = QubitName(name=name, index=n)
+            obj = self._new_register(
+                name=[qubit],
+                dims=2,
                 state=[],
             )
-            registers[obj.name] = obj
-            store[name].append(obj.name)
+            registers[qubit] = obj
+            store[name].append(qubit)
         store[name].append(ListTerminators.LISTEND)
 
     def run_MREG(self, name, size, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            obj = ModeObject(
-                name=RegisterObject(name=name, index=n),
-                time=self.GLOBAL_T,
+            qubit = QubitName(name=name, index=n)
+            obj = self._new_register(
+                name=[qubit],
+                dims=self._fock_cutoff,
                 state=[],
             )
-            registers[obj.name] = obj
-            store[name].append(obj.name)
+            registers[qubit] = obj
+            store[name].append(qubit)
         store[name].append(ListTerminators.LISTEND)
 
         # Pads the hamiltonian with additional dimensions if required and reorders states
@@ -360,25 +327,23 @@ class QutipMixin:
         # for idx, key in enumerate(self.results.metrics.keys()):
         #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
 
-        qreg = self._new_register(result_qobj.final_state)
+        new_qubits = []
+        for target in reordered_qubits:
+            target_register = registers[target]
+            for name in target_register.name:
+                if name not in new_qubits:
+                    new_qubits.append(name)
+            # if isinstance(target, QubitObject):
+            #     if target.name not in qreg.name:
+            #         qreg.name.append(target.name)
+            # elif isinstance(target, QubitRegister):
+        
+        qreg = self._new_register(name=new_qubits, state=result_qobj.final_state, dims=len(new_qubits)**2)
 
         for target in reordered_qubits:
-            target = registers[target]
-            if isinstance(target, QubitObject):
-                if target.name not in qreg.name:
-                    qreg.name.append(target.name)
-            elif isinstance(target, QubitRegister):
-                for name in target.name:
-                    if name not in qreg.name:
-                        qreg.name.append(name)
-
-        for target in reordered_qubits:
-            target = registers[target]
-            if isinstance(target, QubitObject):
-                registers[target.name] = qreg
-            elif isinstance(target, QubitRegister):
-                for name in target.name:
-                    registers[name] = qreg
+            target_register = registers[target]
+            for name in target_register.name:
+                registers[name] = qreg
 
         # self.push(result_qobj.final_state.full().squeeze())
         stack.push(QutipVMNULL)
@@ -389,7 +354,7 @@ class DynamicsMixin:
 
 
 class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
-    def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
+    def __init__(self, n_shots, fock_cutoff, dt):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
         self._dt = dt
@@ -404,7 +369,7 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
                 continue
             if isinstance(value, list):
                 out.append(self.get_state(value, stack, store, registers))
-            elif isinstance(value, RegisterObject):
+            elif isinstance(value, QubitName):
                 out.append((value, registers[value]))
             else:
                 out.append(value)
@@ -464,7 +429,7 @@ class QutipVMStack(VisitableBaseModel):
 
 
 class QutipVM:
-    def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
+    def __init__(self, n_shots, fock_cutoff, dt):
         self.stack = QutipVMStack()
         self.store = {}
         self.registers = {}
@@ -496,14 +461,14 @@ class QutipInterpreter:
     def __init__(
         self,
         graph: ControlFlowGraph,
+        n_shots: int,
+        fock_cutoff: int,
+        dt: float,
         codegen=None,
-        n_shots: int = 10,
-        fock_cutoff: int = 4,
-        dt: float = 0.1,
     ):
         self.graph = graph
         self.nodes = list(graph.nodes())
-        self.vm = QutipVM(n_shots, fock_cutoff, dt)
+        self.vm = QutipVM(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
         self.INSTRUCTIONS = []
         self.codegen = codegen
         if codegen is None:
