@@ -151,6 +151,7 @@ class TestQutipBackend:
         [
             ("[[1], 2, 3]", [[1], 2, 3]),
             ("[[1, 2], 3]", [[1, 2], 3]),
+            ("[[2], [3], [5, [6]]]", [[2], [3], [5, [6]]]),
         ],
     )
     def test_qutip_nested_list(self, program, expected):
@@ -272,4 +273,17 @@ class TestQutipEvolve:
     def test_qutip_hamiltonian_padding(self, program, expected):
         output = interpreter(program)
         assert output == expected
+        
+    # @pytest.mark.parametrize(
+    #     ("program", "expected"),
+    #     [
+    #         (
+    #             "r = qreg(5) \n q0 = r[0] \n q1 = r[1] \n q2 = r[2] \n q3 = r[3] \n s = [q0, q1] \n t = [q2, q3] \n initialize([s, t])",
+    #             [],
+    #         ),
+    #     ],
+    # )
+    # def test_qutip_nested_args(self, program, expected):
+    #     output = interpreter(program)
+    #     assert output == expected
 

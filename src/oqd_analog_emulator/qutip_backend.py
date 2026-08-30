@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
 from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
 from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
@@ -20,12 +21,11 @@ from oqd_core.backend.program import AnalogProgram
 from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
 from oqd_core.frontend.analog import parse_analog
 
-from oqd_analog_emulator.instructions import ListTerminators
 from oqd_analog_emulator.interpreter import AnalogInterpreter
 from oqd_analog_emulator.method_table import (
     ArithmeticMixin,
     BoolMixin,
-    QubitName,
+    MethodTableBase,
     QutipMixin,
 )
 
@@ -33,57 +33,19 @@ from oqd_analog_emulator.method_table import (
 
 __all__ = [
     "QutipBackend",
+    "QutipMethodTable",
 ]
 
 ########################################################################################
 
 
-def recursive_filter(lst, cond):
-    return list(
-        map(
-            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x, filter(cond, lst)
-        )
-    )
-
-
-class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
+class QutipMethodTable(MethodTableBase, ArithmeticMixin, BoolMixin, QutipMixin):
+    
     def __init__(self, n_shots, fock_cutoff, dt):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
         self._dt = dt
-        self.GLOBAL_T = 0.0
-
-    def get_state(self, return_values, stack, store, registers):
-        if not isinstance(return_values, list):
-            return return_values
-        out = []
-        for value in return_values:
-            if isinstance(value, ListTerminators):
-                continue
-            if isinstance(value, list):
-                out.append(self.get_state(value, stack, store, registers))
-            elif isinstance(value, QubitName):
-                out.append((value, registers[value]))
-            else:
-                out.append(value)
-        return out
-
-    def get_args(self, num, stack, store, registers):
-        out = []
-        for _ in list(range(num)):
-            item = stack.pop()
-            if isinstance(item, list):
-                out.append(
-                    recursive_filter(item, lambda x: not isinstance(x, ListTerminators))
-                )
-            else:
-                out.append(item)
-        return self.get_state(out, stack, store, registers)
-
-    def run(self, opcode, args, stack, store, registers):
-        getattr(self, f"run_{opcode}")(*args, stack, store, registers)
-
-
+        self._GLOBAL_T = 0.0
 
 
 class QutipBackend(BackendBase):

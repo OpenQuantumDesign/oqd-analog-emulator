@@ -15,12 +15,19 @@
 import itertools
 import math
 import time
-from typing import List
+import typing
+import warnings
+from typing import Annotated, ClassVar, List, Literal, Union
 
 import numpy as np
 import qutip as qt
 from oqd_compiler_infrastructure import Post, VisitableBaseModel
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
+from pydantic import (
+    BaseModel,
+    Discriminator,
+    TypeAdapter,
+)
 
 from oqd_analog_emulator.instructions import ALIAS, ListTerminators
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
@@ -49,6 +56,14 @@ class QubitRegister(VisitableBaseModel):
 
 
 AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
+
+
+def recursive_filter(lst, cond):
+    return list(
+        map(
+            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x, filter(cond, lst)
+        )
+    )
 
 
 class ArithmeticMixin:
@@ -132,7 +147,7 @@ class BoolMixin:
 
 class QutipMixin:
     def _new_register(self, name, state, dims):
-        return QubitRegister(name=name, time_last_updated=self.GLOBAL_T, state=state, dims=dims)
+        return QubitRegister(name=name, time_last_updated=self._GLOBAL_T, state=state, dims=dims)
         
     def run_GLOBAL(self, name, stack, store, registers):
         if name not in store:
@@ -173,7 +188,7 @@ class QutipMixin:
 
         for target in targets:
             target.state = qt.basis(target.dims, 0)
-            target.time_last_updated = self.GLOBAL_T
+            target.time_last_updated = self._GLOBAL_T
 
         stack.push(AnalogVMNULL)
 
@@ -288,7 +303,7 @@ class QutipMixin:
         if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
             compiler_pass = Post(
                 QutipQobjEvoGenerator(
-                    fock_cutoff=self._fock_cutoff, current_time=self.GLOBAL_T
+                    fock_cutoff=self._fock_cutoff, current_time=self._GLOBAL_T
                 )
             )
             hamiltonian = compiler_pass(hamiltonian)
@@ -307,7 +322,7 @@ class QutipMixin:
         for target in reordered_qubits:
             registers[target].time_last_updated += elapsed_time
 
-        self.GLOBAL_T += duration
+        self._GLOBAL_T += duration
         # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
 
         # for idx, key in enumerate(self.results.metrics.keys()):
@@ -338,5 +353,106 @@ class QutipMixin:
 class DynamicsMixin:
     pass
 
+
+class MethodTableBase(BaseModel):
+        
+    @classmethod
+    def _is_classvar(cls, v):
+        return v is ClassVar or typing.get_origin(v) is ClassVar
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        for k, v in cls.__annotations__.items():
+            if k == "class_":
+                raise AttributeError("`class_` attribute should not be set manually.")
+
+        cls.__annotations__["class_"] = Literal[cls.__name__]
+        setattr(cls, "class_", cls.__name__)
+
+        # Auto-register new method_table types
+        MethodTableRegistry.register(cls)
+    
+    def get_state(self, return_values, stack, store, registers):
+        if not isinstance(return_values, list):
+            return return_values
+        out = []
+        for value in return_values:
+            if isinstance(value, ListTerminators):
+                continue
+            if isinstance(value, list):
+                out.append(self.get_state(value, stack, store, registers))
+            elif isinstance(value, QubitName):
+                out.append((value, registers[value]))
+            else:
+                out.append(value)
+        return out
+    
+    def get_args(self, num, stack, store, registers):
+        out = []
+        for _ in list(range(num)):
+            item = stack.pop()
+            if isinstance(item, list):
+                out.append(
+                    recursive_filter(item, lambda x: not isinstance(x, ListTerminators))
+                )
+            else:
+                out.append(item)
+        return self.get_state(out, stack, store, registers)
+    
+    def run(self, opcode, args, stack, store, registers):
+        getattr(self, f"run_{opcode}")(*args, stack, store, registers)
+
+
+class MetaMethodTableRegistry(type):
+    """
+    Metaclass for the MethodTableRegistry
+    """
+
+    def __new__(cls, clsname, superclasses, attributedict):
+        attributedict["method_tables"] = dict()
+        return super().__new__(cls, clsname, superclasses, attributedict)
+
+    def register(cls, method_table):
+        """Registers a method_table into the MethodTableRegistry."""
+        if not issubclass(method_table, MethodTableBase):
+            raise TypeError("You may only register subclasses of MethodTableBase.")
+
+        if method_table.__name__ in cls.method_tables.keys():
+            warnings.warn(
+                f"Overwriting previously registered `{method_table.__name__}` method_table of the same name.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        cls.method_tables[method_table.__name__] = method_table
+
+    def clear(cls):
+        """Clear all registered types (useful for testing)"""
+        cls.method_tables.clear()
+
+    @property
+    def union(cls):
+        """Get the current Union of all registered types"""
+
+        if len(cls.method_tables) > 1:
+            return Annotated[
+                Union[tuple(cls.method_tables.values())], Discriminator(discriminator="class_")
+            ]
+        else:
+            return next(iter(cls.method_tables.values()))
+
+    @property
+    def adapter(cls):
+        """Get TypeAdapter for current registered types"""
+        return TypeAdapter(cls.union)
+
+
+class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
+    """
+    Represents the MethodTableRegistry
+    """
+
+    pass
 
 
