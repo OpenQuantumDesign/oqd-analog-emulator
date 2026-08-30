@@ -42,7 +42,7 @@ class QubitName(VisitableBaseModel):
 
 class QubitRegister(VisitableBaseModel):
     name: List[QubitName] = []
-    time: float
+    time_last_updated: float
     state: object
     dims: int
 
@@ -54,7 +54,7 @@ class QubitRegister(VisitableBaseModel):
         return len(self.name)
 
 
-QutipVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
+AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
 
 def recursive_filter(lst, cond):
@@ -146,8 +146,8 @@ class BoolMixin:
 
 class QutipMixin:
     def _new_register(self, name, state, dims):
-        return QubitRegister(name=name, time=self.GLOBAL_T, state=state, dims=dims)
-
+        return QubitRegister(name=name, time_last_updated=self.GLOBAL_T, state=state, dims=dims)
+        
     def run_GLOBAL(self, name, stack, store, registers):
         if name not in store:
             store[name] = None
@@ -187,9 +187,9 @@ class QutipMixin:
 
         for target in targets:
             target.state = qt.basis(target.dims, 0)
-            target.time = self.GLOBAL_T
+            target.time_last_updated = self.GLOBAL_T
 
-        stack.push(QutipVMNULL)
+        stack.push(AnalogVMNULL)
 
     def run_MEASURE(self, stack, store, registers):
         targets = self.get_args(1, stack, store, registers)[0]
@@ -319,7 +319,7 @@ class QutipMixin:
 
         elapsed_time = time.time() - start_runtime
         for target in reordered_qubits:
-            registers[target].time += elapsed_time
+            registers[target].time_last_updated += elapsed_time
 
         self.GLOBAL_T += duration
         # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
@@ -346,7 +346,7 @@ class QutipMixin:
                 registers[name] = qreg
 
         # self.push(result_qobj.final_state.full().squeeze())
-        stack.push(QutipVMNULL)
+        stack.push(AnalogVMNULL)
 
 
 class DynamicsMixin:
@@ -391,7 +391,7 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
         getattr(self, f"run_{opcode}")(*args, stack, store, registers)
 
 
-class QutipVMStack(VisitableBaseModel):
+class AnalogStack(VisitableBaseModel):
     def __init__(self):
         self.__index = []
 
@@ -428,9 +428,9 @@ class QutipVMStack(VisitableBaseModel):
         return out
 
 
-class QutipVM:
+class AnalogVirtualMachine:
     def __init__(self, n_shots, fock_cutoff, dt):
-        self.stack = QutipVMStack()
+        self.stack = AnalogStack()
         self.store = {}
         self.registers = {}
 
@@ -457,7 +457,7 @@ class QutipVM:
             )
 
 
-class QutipInterpreter:
+class AnalogInterpreter:
     def __init__(
         self,
         graph: ControlFlowGraph,
@@ -468,7 +468,7 @@ class QutipInterpreter:
     ):
         self.graph = graph
         self.nodes = list(graph.nodes())
-        self.vm = QutipVM(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
+        self.vm = AnalogVirtualMachine(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
         self.INSTRUCTIONS = []
         self.codegen = codegen
         if codegen is None:

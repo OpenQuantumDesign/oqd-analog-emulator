@@ -20,7 +20,7 @@ from oqd_core.backend.program import AnalogProgram
 from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
 from oqd_core.frontend.analog import parse_analog
 
-from oqd_analog_emulator.interpreter import QutipInterpreter
+from oqd_analog_emulator.interpreter import AnalogInterpreter
 
 ########################################################################################
 
@@ -70,7 +70,7 @@ class QutipBackend(BackendBase):
 
         cfg = program.cfg
 
-        interpreter = QutipInterpreter(graph=cfg, n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
+        interpreter = AnalogInterpreter(graph=cfg, n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
         output = interpreter.run()
 
         return program, interpreter, output
