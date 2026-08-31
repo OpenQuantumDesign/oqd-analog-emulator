@@ -107,7 +107,9 @@ class OpCode(Enum):
     @property
     def num_args(self):
         match self:
-            case _ if self in [OpCode.EXTRACT, OpCode.QREG, OpCode.MREG]:
+            case _ if self is OpCode.QREG:
+                return 3
+            case _ if self in [OpCode.EXTRACT, OpCode.MREG]:
                 return 2
             case _ if self in [
                 OpCode.LOAD,
@@ -397,7 +399,7 @@ class QutipBackendInstructionsCodegen(RewriteRule):
 
     def map_QuantumRegister(self, model: QuantumRegister, name: str):
         instruction = QutipBackendInstruction(
-            opcode=OpCode.QREG, args=[name, model.size]
+            opcode=OpCode.QREG, args=[name, model.size, 2]
         )
         return QutipBackendInstructions(instructions=[instruction])
 

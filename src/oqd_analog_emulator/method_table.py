@@ -35,6 +35,7 @@ from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 class QubitName(VisitableBaseModel):
     name: str
     index: int
+    dim: int
 
     def __hash__(self):
         return hash((self.name, self.index))
@@ -44,7 +45,6 @@ class QubitRegister(VisitableBaseModel):
     name: List[QubitName] = []
     time_last_updated: float
     state: object
-    dims: int
 
     def __hash__(self):
         return hash(tuple(self.name))
@@ -52,7 +52,7 @@ class QubitRegister(VisitableBaseModel):
     @property
     def n(self):
         return len(self.name)
-    
+
     def sort(self):
         sorted_name = sorted(self.name, key=lambda k: (k.name, k.index))
         permute_order = [self.name.index(x) for x in sorted_name]
@@ -71,7 +71,7 @@ def recursive_filter(lst, cond):
     return list(
         map(
             lambda x: recursive_filter(x, cond) if isinstance(x, list) else x,
-            filter(cond, lst)
+            filter(cond, lst),
         )
     )
 
@@ -155,10 +155,7 @@ class BoolMixin:
         stack.push(lhs >= rhs)
 
 
-class QutipMixin:
-    def _new_register(self, name, state, dims):
-        return QubitRegister(name=name, time_last_updated=self._GLOBAL_T, state=state, dims=dims)
-        
+class StackStoreMixin:
     def run_GLOBAL(self, name, stack, store, registers):
         if name not in store:
             store[name] = None
@@ -180,6 +177,11 @@ class QutipMixin:
         else:
             raise ValueError
 
+
+class QutipMixin:
+    def _new_register(self, name, state):
+        return QubitRegister(name=name, time_last_updated=self._GLOBAL_T, state=state)
+
     def run_KRON(self, stack, store, registers):
         op2 = stack.pop()
         op1 = stack.pop()
@@ -197,37 +199,38 @@ class QutipMixin:
         targets = actual_qubits
 
         for target in targets:
-            target.state = qt.basis(target.dims, 0)
+            target.state = qt.basis(np.prod([n.dim for n in target.name]), 0)
             target.time_last_updated = self._GLOBAL_T
 
         stack.push(AnalogVMNULL)
 
     def run_MEASURE(self, stack, store, registers):
-        targets = self.get_args(1, stack, store, registers)[0]
-        if not isinstance(targets, list):
-            targets = [targets]
+        # TODO: Fix measurements
+        # targets = self.get_args(1, stack, store, registers)[0]
+        # if not isinstance(targets, list):
+        #     targets = [targets]
 
-        qubits = []
-        actual_qubits = []
-        for target, name in targets:
-            qubits.append(target)
-            actual_qubits.append(name)
-        targets = actual_qubits
-        counts = {}
-        for ind, target in enumerate(targets):
-            probs = np.power(np.abs(target.state.full()), 2).squeeze()
-            n_shots = self._n_shots
-            inds = np.random.choice(len(probs), size=n_shots, p=probs)
-            h_dims = target.dims
-            opts = len(targets) * [list(range(h_dims))]
-            bases = list(itertools.product(*opts))
-            shots = np.array([bases[ind] for ind in inds])
-            bitstrings = ["".join(map(str, shot)) for shot in shots]
-            counts[ind] = {
-                bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
-            }
+        # qubits = []
+        # actual_qubits = []
+        # for target, name in targets:
+        #     qubits.append(target)
+        #     actual_qubits.append(name)
+        # targets = actual_qubits
+        # counts = {}
+        # for ind, target in enumerate(targets):
+        #     probs = np.power(np.abs(target.state.full()), 2).squeeze()
+        #     n_shots = self._n_shots
+        #     inds = np.random.choice(len(probs), size=n_shots, p=probs)
+        #     h_dims = target.dims
+        #     opts = len(targets) * [list(range(h_dims))]
+        #     bases = list(itertools.product(*opts))
+        #     shots = np.array([bases[ind] for ind in inds])
+        #     bitstrings = ["".join(map(str, shot)) for shot in shots]
+        #     counts[ind] = {
+        #         bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
+        #     }
 
-        stack.push(counts)
+        stack.push(AnalogVMNULL)
 
     def run_EXTRACT(self, name, index, stack, store, registers):
         if isinstance(name, ALIAS):
@@ -235,13 +238,12 @@ class QutipMixin:
         else:
             stack.push(QubitName(name=name, index=index))
 
-    def run_QREG(self, name, size, stack, store, registers):
+    def run_QREG(self, name, size, dim, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            qubit = QubitName(name=name, index=n)
+            qubit = QubitName(name=name, index=n, dim=dim)
             obj = self._new_register(
                 name=[qubit],
-                dims=2,
                 state=[],
             )
             registers[qubit] = obj
@@ -251,10 +253,9 @@ class QutipMixin:
     def run_MREG(self, name, size, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            qubit = QubitName(name=name, index=n)
+            qubit = QubitName(name=name, index=n, dim=self._fock_cutoff)
             obj = self._new_register(
                 name=[qubit],
-                dims=self._fock_cutoff,
                 state=[],
             )
             registers[qubit] = obj
@@ -327,8 +328,11 @@ class QutipMixin:
         )
 
         self._GLOBAL_T += duration
-        
-        qreg = self._new_register(name=reordered_qubits, state=result_qobj.final_state, dims=len(reordered_qubits)**2).sort()
+
+        qreg = self._new_register(
+            name=reordered_qubits,
+            state=result_qobj.final_state,
+        ).sort()
 
         for target in reordered_qubits:
             registers[target] = qreg
@@ -341,7 +345,6 @@ class DynamicsMixin:
 
 
 class MethodTableBase(BaseModel):
-        
     @classmethod
     def _is_classvar(cls, v):
         return v is ClassVar or typing.get_origin(v) is ClassVar
@@ -358,7 +361,7 @@ class MethodTableBase(BaseModel):
 
         # Auto-register new method_table types
         MethodTableRegistry.register(cls)
-    
+
     def get_state(self, return_values, stack, store, registers):
         if not isinstance(return_values, list):
             return return_values
@@ -373,7 +376,7 @@ class MethodTableBase(BaseModel):
             else:
                 out.append(value)
         return out
-    
+
     def get_args(self, num, stack, store, registers):
         out = []
         for _ in list(range(num)):
@@ -385,7 +388,7 @@ class MethodTableBase(BaseModel):
             else:
                 out.append(item)
         return self.get_state(out, stack, store, registers)
-    
+
     def run(self, opcode, args, stack, store, registers):
         getattr(self, f"run_{opcode}")(*args, stack, store, registers)
 
@@ -423,7 +426,8 @@ class MetaMethodTableRegistry(type):
 
         if len(cls.method_tables) > 1:
             return Annotated[
-                Union[tuple(cls.method_tables.values())], Discriminator(discriminator="class_")
+                Union[tuple(cls.method_tables.values())],
+                Discriminator(discriminator="class_"),
             ]
         else:
             return next(iter(cls.method_tables.values()))
@@ -440,5 +444,3 @@ class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
     """
 
     pass
-
-

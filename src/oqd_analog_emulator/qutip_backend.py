@@ -27,6 +27,7 @@ from oqd_analog_emulator.method_table import (
     BoolMixin,
     MethodTableBase,
     QutipMixin,
+    StackStoreMixin,
 )
 
 ########################################################################################
@@ -39,8 +40,9 @@ __all__ = [
 ########################################################################################
 
 
-class QutipMethodTable(MethodTableBase, ArithmeticMixin, BoolMixin, QutipMixin):
-    
+class QutipMethodTable(
+    MethodTableBase, ArithmeticMixin, BoolMixin, QutipMixin, StackStoreMixin
+):
     def __init__(self, n_shots, fock_cutoff, dt):
         self._n_shots = n_shots
         self._fock_cutoff = fock_cutoff
@@ -69,7 +71,13 @@ class QutipBackend(BackendBase):
 
         return program
 
-    def run(self, program: str | AnalogProgram = None, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1,):
+    def run(
+        self,
+        program: str | AnalogProgram = None,
+        n_shots: int = 10,
+        fock_cutoff: int = 4,
+        dt: float = 0.1,
+    ):
         """
         Method to simulate an experiment using the QuTip backend
 
@@ -86,11 +94,11 @@ class QutipBackend(BackendBase):
             raise TypeError("Provide valid analog code or AnalogProgram.")
 
         cfg = program.cfg
-        method_table = QutipMethodTable(
-            n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt
-        )
+        method_table = QutipMethodTable(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
 
-        interpreter = AnalogInterpreter(graph=cfg, method_table=method_table, fock_cutoff=fock_cutoff)
+        interpreter = AnalogInterpreter(
+            graph=cfg, method_table=method_table, fock_cutoff=fock_cutoff
+        )
         output = interpreter.run()
 
         return program, interpreter, output
