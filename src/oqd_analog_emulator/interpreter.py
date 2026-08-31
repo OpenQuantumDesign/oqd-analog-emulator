@@ -371,7 +371,7 @@ class QutipMixin:
         # for idx, key in enumerate(self.results.metrics.keys()):
         #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
 
-        qreg = self._new_register(reordered_qubits, result_qobj.final_state)
+        qreg = self._new_register(reordered_qubits, result_qobj.final_state).sort()
         for target in reordered_qubits:
             registers[target] = qreg
 
