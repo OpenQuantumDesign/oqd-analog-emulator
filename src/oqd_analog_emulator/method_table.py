@@ -386,8 +386,9 @@ class MethodTableBase(BaseModel):
         out = []
         for _ in list(range(num)):
             item = stack.pop()
-            while isinstance(item, Alias):
-                item = store.get(item.target)
+
+            # while isinstance(item, Alias):
+            #     item = store.get(item.target)
 
             if isinstance(item, list):
                 out.append(
