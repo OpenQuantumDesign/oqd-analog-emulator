@@ -364,8 +364,12 @@ class MethodTableBase(BaseModel):
         MethodTableRegistry.register(cls)
 
     def get_state(self, return_values, stack, store, registers):
+        if isinstance(return_values, QubitName):
+            return registers[return_values]
+
         if not isinstance(return_values, list):
             return return_values
+
         out = []
         for value in return_values:
             if isinstance(value, ListTerminators):

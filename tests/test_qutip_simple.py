@@ -309,6 +309,22 @@ class TestQutipEvolve:
         [
             ("a = [1, 2] \n a[0]", 1),
             ("a = [1, 2] \n a[1]", 2),
+            (
+                "r = qreg(2) \n r[0]",
+                QubitRegister(
+                    name=[QubitName(name="r", index=0, dim=2)],
+                    time_last_updated=0,
+                    state=[],
+                ),
+            ),
+            (
+                "r = qreg(2) \n r[1]",
+                QubitRegister(
+                    name=[QubitName(name="r", index=1, dim=2)],
+                    time_last_updated=0,
+                    state=[],
+                ),
+            ),
         ],
     )
     def test_qutip_extract(self, program, expected):
