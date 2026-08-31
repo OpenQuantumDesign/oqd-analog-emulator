@@ -14,7 +14,6 @@
 
 import itertools
 import math
-import time
 from typing import List
 
 import numpy as np
@@ -30,6 +29,8 @@ from oqd_analog_emulator.instructions import (
     QutipBackendInstructionsCodegen,
 )
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
+
+########################################################################################
 
 
 class RegisterObject(VisitableBaseModel):
@@ -61,6 +62,16 @@ class QubitRegister(VisitableBaseModel):
     def n(self):
         return len(self.name)
 
+    def sort(self):
+        sorted_name = sorted(self.name, key=lambda k: (k.name, k.index))
+        permute_order = [self.name.index(x) for x in sorted_name]
+        sorted_state = self.state.permute(permute_order)
+
+        self.name = sorted_name
+        self.state = sorted_state
+
+        return self
+
 
 class ModeObject(VisitableBaseModel):
     name: RegisterObject
@@ -87,12 +98,19 @@ class ModeRegister(VisitableBaseModel):
 QutipVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
 
+########################################################################################
+
+
 def recursive_filter(lst, cond):
     return list(
         map(
-            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x, filter(cond, lst)
+            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x,
+            filter(cond, lst),
         )
     )
+
+
+########################################################################################
 
 
 class ArithmeticMixin:
@@ -175,8 +193,8 @@ class BoolMixin:
 
 
 class QutipMixin:
-    def _new_register(self, state):
-        return QubitRegister(name=[], time=self.GLOBAL_T, state=state)
+    def _new_register(self, name, state):
+        return QubitRegister(name=name, time=self.GLOBAL_T, state=state)
 
     def run_GLOBAL(self, name, stack, store, registers):
         if name not in store:
@@ -325,24 +343,21 @@ class QutipMixin:
     def run_EVOLVE(self, stack, store, registers):
         args = self.get_args(3, stack, store, registers)
         targets = args[0]
-
         duration = args[1]
         hamiltonian = args[2]
 
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
-        # results = {}
 
         if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
-            compiler_pass = Post(
+            qobjevo_gen = Post(
                 QutipQobjEvoGenerator(
                     fock_cutoff=self._fock_cutoff, current_time=self.GLOBAL_T
                 )
             )
-            hamiltonian = compiler_pass(hamiltonian)
+            hamiltonian = qobjevo_gen(hamiltonian)
 
         states, padded_hamiltonian, reordered_qubits = self._pad(hamiltonian, targets)
 
-        start_runtime = time.time()
         result_qobj = qt.sesolve(
             padded_hamiltonian,
             states,  # Tensor product
@@ -350,42 +365,24 @@ class QutipMixin:
             options={"store_states": True},
         )
 
-        elapsed_time = time.time() - start_runtime
-        for target in reordered_qubits:
-            registers[target].time += elapsed_time
-
         self.GLOBAL_T += duration
         # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
 
         # for idx, key in enumerate(self.results.metrics.keys()):
         #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
 
-        qreg = self._new_register(result_qobj.final_state)
-
+        qreg = self._new_register(reordered_qubits, result_qobj.final_state)
         for target in reordered_qubits:
-            target = registers[target]
-            if isinstance(target, QubitObject):
-                if target.name not in qreg.name:
-                    qreg.name.append(target.name)
-            elif isinstance(target, QubitRegister):
-                for name in target.name:
-                    if name not in qreg.name:
-                        qreg.name.append(name)
+            registers[target] = qreg
 
-        for target in reordered_qubits:
-            target = registers[target]
-            if isinstance(target, QubitObject):
-                registers[target.name] = qreg
-            elif isinstance(target, QubitRegister):
-                for name in target.name:
-                    registers[name] = qreg
-
-        # self.push(result_qobj.final_state.full().squeeze())
         stack.push(QutipVMNULL)
 
 
 class DynamicsMixin:
     pass
+
+
+########################################################################################
 
 
 class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
@@ -426,6 +423,7 @@ class QutipMethodTable(ArithmeticMixin, BoolMixin, QutipMixin):
         getattr(self, f"run_{opcode}")(*args, stack, store, registers)
 
 
+########################################################################################
 class QutipVMStack(VisitableBaseModel):
     def __init__(self):
         self.__index = []
@@ -463,6 +461,9 @@ class QutipVMStack(VisitableBaseModel):
         return out
 
 
+########################################################################################
+
+
 class QutipVM:
     def __init__(self, n_shots=10, fock_cutoff=4, dt=0.1):
         self.stack = QutipVMStack()
@@ -490,6 +491,9 @@ class QutipVM:
                 store=self.store,
                 registers=self.registers,
             )
+
+
+########################################################################################
 
 
 class QutipInterpreter:
