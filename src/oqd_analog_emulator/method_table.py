@@ -14,7 +14,6 @@
 
 import itertools
 import math
-import time
 import typing
 import warnings
 from typing import Annotated, ClassVar, List, Literal, Union
@@ -53,6 +52,16 @@ class QubitRegister(VisitableBaseModel):
     @property
     def n(self):
         return len(self.name)
+    
+    def sort(self):
+        sorted_name = sorted(self.name, key=lambda k: (k.name, k.index))
+        permute_order = [self.name.index(x) for x in sorted_name]
+        sorted_state = self.state.permute(permute_order)
+
+        self.name = sorted_name
+        self.state = sorted_state
+
+        return self
 
 
 AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
@@ -61,7 +70,8 @@ AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 def recursive_filter(lst, cond):
     return list(
         map(
-            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x, filter(cond, lst)
+            lambda x: recursive_filter(x, cond) if isinstance(x, list) else x,
+            filter(cond, lst)
         )
     )
 
@@ -298,19 +308,17 @@ class QutipMixin:
         hamiltonian = args[2]
 
         tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
-        # results = {}
 
         if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
-            compiler_pass = Post(
+            qobjevo_gen = Post(
                 QutipQobjEvoGenerator(
                     fock_cutoff=self._fock_cutoff, current_time=self._GLOBAL_T
                 )
             )
-            hamiltonian = compiler_pass(hamiltonian)
+            hamiltonian = qobjevo_gen(hamiltonian)
 
         states, padded_hamiltonian, reordered_qubits = self._pad(hamiltonian, targets)
 
-        start_runtime = time.time()
         result_qobj = qt.sesolve(
             padded_hamiltonian,
             states,  # Tensor product
@@ -318,35 +326,13 @@ class QutipMixin:
             options={"store_states": True},
         )
 
-        elapsed_time = time.time() - start_runtime
-        for target in reordered_qubits:
-            registers[target].time_last_updated += elapsed_time
-
         self._GLOBAL_T += duration
-        # self.results.times.extend([t + self.results.times[-1] for t in tspan][1:])
-
-        # for idx, key in enumerate(self.results.metrics.keys()):
-        #     self.results.metrics[key].extend(result_qobj.expect[idx].tolist()[1:])
-
-        new_qubits = []
-        for target in reordered_qubits:
-            target_register = registers[target]
-            for name in target_register.name:
-                if name not in new_qubits:
-                    new_qubits.append(name)
-            # if isinstance(target, QubitObject):
-            #     if target.name not in qreg.name:
-            #         qreg.name.append(target.name)
-            # elif isinstance(target, QubitRegister):
         
-        qreg = self._new_register(name=new_qubits, state=result_qobj.final_state, dims=len(new_qubits)**2)
+        qreg = self._new_register(name=reordered_qubits, state=result_qobj.final_state, dims=len(reordered_qubits)**2)
 
         for target in reordered_qubits:
-            target_register = registers[target]
-            for name in target_register.name:
-                registers[name] = qreg
+            registers[target] = qreg
 
-        # self.push(result_qobj.final_state.full().squeeze())
         stack.push(AnalogVMNULL)
 
 
