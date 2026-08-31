@@ -328,7 +328,7 @@ class QutipMixin:
 
         self._GLOBAL_T += duration
         
-        qreg = self._new_register(name=reordered_qubits, state=result_qobj.final_state, dims=len(reordered_qubits)**2)
+        qreg = self._new_register(name=reordered_qubits, state=result_qobj.final_state, dims=len(reordered_qubits)**2).sort()
 
         for target in reordered_qubits:
             registers[target] = qreg
