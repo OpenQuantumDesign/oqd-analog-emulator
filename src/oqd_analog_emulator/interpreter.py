@@ -26,6 +26,11 @@ from oqd_analog_emulator.instructions import (
 ########################################################################################
 
 
+AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
+
+########################################################################################
+
+
 class AnalogStack(VisitableBaseModel):
     def __init__(self):
         self.__index = []

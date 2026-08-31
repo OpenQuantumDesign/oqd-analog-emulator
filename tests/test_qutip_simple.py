@@ -15,6 +15,7 @@
 import numpy as np
 import pytest
 
+from oqd_analog_emulator.method_table import QubitName, QubitRegister
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
 
@@ -273,7 +274,7 @@ class TestQutipEvolve:
     def test_qutip_hamiltonian_padding(self, program, expected):
         output = interpreter(program)
         assert output == expected
-        
+
     # @pytest.mark.parametrize(
     #     ("program", "expected"),
     #     [
@@ -287,3 +288,40 @@ class TestQutipEvolve:
     #     output = interpreter(program)
     #     assert output == expected
 
+    @pytest.mark.parametrize(
+        ("program", "expected"),
+        [
+            ("a = 1 \n b = a \n b", 1),
+            ("a = 1 \n b = a \n c = b \n c", 1),
+            ("a = 1 \n b = a \n c = b + 1 \n c", 2),
+            (
+                "r = qreg(2) \n q = r \n initialize(q) \n evolve(%X %@ %X, 1, q) \n result = evolve(%X, 1, q[0])",
+                [],
+            ),
+        ],
+    )
+    def test_qutip_alias(self, program, expected):
+        output = interpreter(program)
+        assert output == expected
+
+    @pytest.mark.parametrize(
+        ("program", "expected"),
+        [
+            ("a = [1, 2] \n a[0]", 1),
+            ("a = [1, 2] \n a[1]", 2),
+        ],
+    )
+    def test_qutip_extract(self, program, expected):
+        output = interpreter(program)
+        assert output == expected
+
+    @pytest.mark.xfail(raises=ValueError, reason="Out-of-bounds indexing of array")
+    @pytest.mark.parametrize(
+        "program",
+        [
+            "a = [1, 2] \n a[2]",
+            "r = qreg(2) \n r[2]",
+        ],
+    )
+    def test_xfail_qutip_extract(self, program):
+        interpreter(program)

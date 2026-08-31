@@ -71,7 +71,7 @@ class ListTerminators(Enum):
     LISTEND = 1
 
 
-class ALIAS(BaseModel):
+class Alias(BaseModel):
     target: Identifier
 
 
@@ -192,7 +192,7 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         instr1 = QutipBackendInstruction(opcode=OpCode.GLOBAL, args=[model.name])
         if isinstance(model.value, Access):
             instr2 = QutipBackendInstruction(
-                opcode=OpCode.CONST, args=[ALIAS(target=model.name)]
+                opcode=OpCode.CONST, args=[Alias(target=model.value.name)]
             )
         else:
             instr2 = self(model.value)

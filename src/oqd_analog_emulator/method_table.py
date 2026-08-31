@@ -28,7 +28,8 @@ from pydantic import (
     TypeAdapter,
 )
 
-from oqd_analog_emulator.instructions import ALIAS, ListTerminators
+from oqd_analog_emulator.instructions import Alias, ListTerminators
+from oqd_analog_emulator.interpreter import AnalogVMNULL
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 
 
@@ -62,9 +63,6 @@ class QubitRegister(VisitableBaseModel):
         self.state = sorted_state
 
         return self
-
-
-AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
 
 def recursive_filter(lst, cond):
@@ -167,12 +165,21 @@ class StackStoreMixin:
         store[name] = stack.pop()
 
     def run_LOAD(self, name, stack, store, registers):
-        if isinstance(name, ALIAS):
-            self.run_LOAD(name.target, stack, store, registers)
-        if isinstance(name, QubitName):
-            stack.push(registers[name])
+        while isinstance(store.get(name, None), Alias):
+            name = store[name].target
+
         if name in store:
             item = store[name]
+            stack.push(item)
+        else:
+            raise ValueError
+
+    def run_EXTRACT(self, name, index, stack, store, registers):
+        while isinstance(store.get(name, None), Alias):
+            name = store[name].target
+
+        if name in store and index < len(store[name]) - 2:
+            item = store[name][index + 1]
             stack.push(item)
         else:
             raise ValueError
@@ -231,12 +238,6 @@ class QutipMixin:
         #     }
 
         stack.push(AnalogVMNULL)
-
-    def run_EXTRACT(self, name, index, stack, store, registers):
-        if isinstance(name, ALIAS):
-            stack.push(QubitName(name=name.target, index=index))
-        else:
-            stack.push(QubitName(name=name, index=index))
 
     def run_QREG(self, name, size, dim, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
@@ -381,6 +382,9 @@ class MethodTableBase(BaseModel):
         out = []
         for _ in list(range(num)):
             item = stack.pop()
+            while isinstance(item, Alias):
+                item = store.get(item.target)
+
             if isinstance(item, list):
                 out.append(
                     recursive_filter(item, lambda x: not isinstance(x, ListTerminators))
