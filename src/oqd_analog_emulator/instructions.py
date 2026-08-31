@@ -255,7 +255,7 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         if not _is_constant_math(model):
             instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
         else:
-            instructions += self(model.expr1) + self(model.expr2)
+            instructions += self(model.op1) + self(model.op2)
             instructions += QutipBackendInstruction(opcode=OpCode.ADD)
         return instructions
 
@@ -264,7 +264,7 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         if not _is_constant_math(model):
             instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
         else:
-            instructions += self(model.expr1) + self(model.expr2)
+            instructions += self(model.op1) + self(model.op2)
             instructions += QutipBackendInstruction(opcode=OpCode.SUB)
         return instructions
 
