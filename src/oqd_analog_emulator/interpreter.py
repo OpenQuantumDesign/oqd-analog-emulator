@@ -94,6 +94,12 @@ class AnalogVirtualMachine:
                 registers=self.registers,
             )
 
+    def clear(self):
+        self.stack = AnalogStack()
+        self.store = {}
+        self.registers = {}
+        self.history = {}
+
 
 class AnalogInterpreter:
     def __init__(
@@ -163,3 +169,6 @@ class AnalogInterpreter:
 
     def get_instructions(self):
         return self.INSTRUCTIONS
+
+    def clear(self):
+        self.vm.clear()
