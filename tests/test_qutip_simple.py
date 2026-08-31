@@ -331,6 +331,33 @@ class TestQutipEvolve:
         output = interpreter(program)
         assert output == expected
 
+    @pytest.mark.parametrize(
+        ("program", "expected"),
+        [
+            ("a = [1, 2] \n b = a \n b[0]", 1),
+            ("a = [1, 2] \n b = a \n b[1]", 2),
+            (
+                "r = qreg(2) \n q = r \n q[0]",
+                QubitRegister(
+                    name=[QubitName(name="r", index=0, dim=2)],
+                    time_last_updated=0,
+                    state=[],
+                ),
+            ),
+            (
+                "r = qreg(2) \n q = r \n q[1]",
+                QubitRegister(
+                    name=[QubitName(name="r", index=1, dim=2)],
+                    time_last_updated=0,
+                    state=[],
+                ),
+            ),
+        ],
+    )
+    def test_qutip_alias_extract(self, program, expected):
+        output = interpreter(program)
+        assert output == expected
+
     @pytest.mark.xfail(raises=ValueError, reason="Out-of-bounds indexing of array")
     @pytest.mark.parametrize(
         "program",
