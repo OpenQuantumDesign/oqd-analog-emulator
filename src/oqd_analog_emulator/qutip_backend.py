@@ -76,7 +76,7 @@ class QutipBackend(BackendBase):
         program: str | AnalogProgram = None,
         n_shots: int = 10,
         fock_cutoff: int = 4,
-        dt: float = 0.1,
+        dt: float = 1e-2,
     ):
         """
         Method to simulate an experiment using the QuTip backend
