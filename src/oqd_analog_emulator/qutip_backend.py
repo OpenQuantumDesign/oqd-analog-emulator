@@ -97,8 +97,8 @@ class QutipBackend(BackendBase):
         method_table = QutipMethodTable(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
 
         interpreter = AnalogInterpreter(
-            graph=cfg, method_table=method_table, fock_cutoff=fock_cutoff
+            method_table=method_table, fock_cutoff=fock_cutoff
         )
-        output = interpreter.run()
+        output = interpreter.run(cfg=cfg)
 
         return program, interpreter, output

@@ -16,6 +16,7 @@ from typing import Any
 
 from oqd_compiler_infrastructure import VisitableBaseModel
 from oqd_core.analysis.utils import ControlFlowGraph
+from oqd_core.interface.analog import Break, Continue
 
 from oqd_analog_emulator.instructions import (
     AnalogInstructions,
@@ -104,57 +105,45 @@ class AnalogVirtualMachine:
 class AnalogInterpreter:
     def __init__(
         self,
-        graph: ControlFlowGraph,
         method_table: Any,
         fock_cutoff: int,
-        codegen=None,
     ):
-        self.graph = graph
-        self.nodes = list(graph.nodes())
         self.vm = AnalogVirtualMachine(method_table=method_table)
-        self.INSTRUCTIONS = []
-        self.codegen = codegen
-        if codegen is None:
-            self.codegen = AnalogInstructionsCodegen(fock_cutoff=fock_cutoff)
-
-    def get_block(self, node: int = 0):
-        return self.graph.blocks[node]
+        self.codegen = AnalogInstructionsCodegen(fock_cutoff=fock_cutoff)
 
     def evaluate(self, stmt):
         instructions = self.codegen(stmt)
-        self.INSTRUCTIONS.append(instructions)
         self.vm.run(instructions)
 
-    def run(self):
-        node = 1
-        current_block = self.get_block(node)
+    def run(self, cfg: ControlFlowGraph):
+        current_block = cfg.blocks[0]
 
-        while current_block.kind != "stop":
-            stmt = current_block.stmt
+        while True:
+            inverse_edge_labels = {v: k for k, v in current_block.edge_labels.items()}
 
-            if current_block.kind == "branch":
-                self.evaluate(stmt)
-                cond = self.vm.stack.pop()
-                if cond:
-                    node = next(
-                        key
-                        for key, val in current_block.edge_labels.items()
-                        if val == "true"
-                    )
-                else:
-                    node = next(
-                        key
-                        for key, val in current_block.edge_labels.items()
-                        if val == "false"
-                    )
-
-            if current_block.kind == "stmt":
-                if not current_block.edge_labels and stmt:
-                    self.evaluate(stmt)
-                if current_block.succs:
+            match current_block.kind:
+                case "stop":
+                    break
+                case "start":
                     current_block = current_block.succs[0]
-                    continue
-            current_block = self.get_block(node)
+                case "stmt" if isinstance(current_block.stmt, (Break, Continue)):
+                    current_block = cfg.blocks[
+                        inverse_edge_labels.get(
+                            current_block.stmt.__class__.__name__.lower()
+                        )
+                    ]
+                case "stmt":
+                    self.evaluate(current_block.stmt)
+                    current_block = current_block.succs[0]
+                case "branch":
+                    self.evaluate(current_block.stmt)
+                    cond = self.vm.stack.pop()
+
+                    current_block = cfg.blocks[
+                        inverse_edge_labels.get(str(cond).lower())
+                    ]
+                case _:
+                    raise ValueError("Unknown kind of block in CFG")
 
         stack_top = self.vm.stack.pop()
         if stack_top is None:
@@ -166,9 +155,6 @@ class AnalogInterpreter:
 
     def get_state(self, return_values):
         return self.vm.get_state(return_values)
-
-    def get_instructions(self):
-        return self.INSTRUCTIONS
 
     def clear(self):
         self.vm.clear()
