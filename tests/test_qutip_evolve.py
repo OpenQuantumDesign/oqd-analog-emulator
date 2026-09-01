@@ -65,7 +65,7 @@ def assert_register_eq(register, expected):
 
     raise ValueError(
         "register does not match expected "
-        f"[name {TICK if m_name else CROSS}, time_last_updated {TICK if m_time_last_updated else CROSS}, state {TICK if m_state else CROSS}]"
+        f"\033[0m[name {TICK if m_name else CROSS}, time_last_updated {TICK if m_time_last_updated else CROSS}, state {TICK if m_state else CROSS}]"
     )
 
 
@@ -102,7 +102,44 @@ def backend():
 ########################################################################################
 
 
-class TestQutipEvolve:
+@pytest.mark.xfail(
+    raises=AnalogCompilerError,
+    reason="Hamiltonian does not match targets dimension",
+)
+def test_xfail_incompatible_dim(backend):
+    source = """
+    q = qreg(2)
+    initialize(q)
+
+    evolve(%Y , 1, q)
+
+    q
+    """
+
+    program, interp, out = backend.run(source)
+
+
+@pytest.mark.xfail(
+    raises=AnalogCompilerError,
+    reason="Hamiltonian acts on mode register does not match targets a qubit register",
+)
+def test_xfail_incorrect_register_type(backend):
+    source = """
+    q = qreg(2)
+    initialize(q)
+
+    evolve(%A , 1, q)
+
+    q
+    """
+
+    program, interp, out = backend.run(source)
+
+
+########################################################################################
+
+
+class TestQutipQubitsEvolve:
     def test_qutip_init(self, backend):
         source = """
         q = qreg(2)
@@ -546,36 +583,199 @@ class TestQutipEvolve:
             ),
         )
 
-    ########################################################################################
 
-    @pytest.mark.xfail(
-        raises=AnalogCompilerError,
-        reason="Hamiltonian does not match targets dimension",
-    )
-    def test_xfail_incompatible_dim(self, backend):
+class TestQutipModeEvolve:
+    def test_qutip_mode_init(self, backend):
         source = """
-        q = qreg(2)
-        initialize(q)
+        m = qmode(1)
+        initialize(m)
 
-        evolve(%Y , 1, q)
-
-        q
+        m
         """
 
         program, interp, out = backend.run(source)
 
-    @pytest.mark.xfail(
-        raises=AnalogCompilerError,
-        reason="Hamiltonian acts on mode register does not match targets a qubit register",
-    )
-    def test_xfail_incorrect_register_type(self, backend):
+        assert_register_eq(
+            out[0][1],
+            QubitRegister(
+                name=[QubitName(name="m", index=0, dim=4)],
+                time_last_updated=0,
+                state=qutip.basis(4, 0),
+            ),
+        )
+
+    def test_qutip_mode_evolve_simple(self, backend):
         source = """
-        q = qreg(2)
-        initialize(q)
+        m = qmode(1)
+        initialize(m)
 
-        evolve(%A , 1, q)
+        evolve(%A %+ %C, 1, m)
 
-        q
+        m
         """
 
-        program, interp, out = backend.run(source)
+        program, interp, out = backend.run(source, fock_cutoff=2)
+
+        assert_register_eq(
+            out[0][1],
+            QubitRegister(
+                name=[QubitName(name="m", index=0, dim=2)],
+                time_last_updated=1,
+                state=np.cos(1) * qutip.basis(2, 0)
+                - 1j * np.sin(1) * qutip.basis(2, 1),
+            ),
+        )
+
+    @pytest.mark.parametrize("fock_cutoff", range(2, 11))
+    def test_qutip_mode_evolve_fock_cutoff(self, fock_cutoff, backend):
+        source = """
+        m = qmode(1)
+        initialize(m)
+
+        evolve(%A %+ %C, 1, m)
+
+        m
+        """
+
+        program, interp, out = backend.run(source, fock_cutoff=fock_cutoff)
+
+        assert_register_eq(
+            out[0][1],
+            QubitRegister(
+                name=[QubitName(name="m", index=0, dim=fock_cutoff)],
+                time_last_updated=1,
+                state=qutip.Qobj(
+                    (-1j * (qutip.create(fock_cutoff) + qutip.destroy(fock_cutoff)))
+                    .expm()
+                    .full()[:, 0:1]
+                ),
+            ),
+        )
+
+
+class TestQutipCombinedEvolve:
+    @pytest.mark.skip(
+        reason="Verify hamiltonian dimension not called for evolve statement in oqd_core.compiler.analog.cfg_passes.canonicalize_operators_cfg"
+    )
+    def test_qutip_red_sideband(self, backend):
+        source = """
+        q = qreg(1)
+        m = qmode(1)
+        
+        initialize(q)
+        initialize(m)
+        
+        evolve((0.5 %* %X %+ (0.5 * 1j) %* %Y) %@ %A %+ (0.5 %* %X %- (0.5 * 1j) %* %Y) %@ %C, 1, [q[0], m[0]])
+
+        m
+        """
+
+        program, interp, out = backend.run(source, fock_cutoff=4)
+
+        assert_register_eq(
+            out[0][1],
+            QubitRegister(
+                name=[
+                    QubitName(name="m", index=0, dim=4),
+                    QubitName(name="q", index=0, dim=2),
+                ],
+                time_last_updated=1,
+                state=qutip.Qobj(
+                    (
+                        -1j
+                        * (
+                            qutip.tensor(qutip.create(4), qutip.sigmam())
+                            + qutip.tensor(qutip.destroy(4), qutip.sigmap())
+                        )
+                    )
+                    .expm()
+                    .full()[:, 0:1],
+                    dims=[[4, 2], [1, 1]],
+                ),
+            ),
+        )
+
+    @pytest.mark.skip(
+        reason="Verify hamiltonian dimension not called for evolve statement in oqd_core.compiler.analog.cfg_passes.canonicalize_operators_cfg"
+    )
+    def test_qutip_blue_sideband(self, backend):
+        source = """
+        q = qreg(1)
+        m = qmode(1)
+        
+        initialize(q)
+        initialize(m)
+        
+        evolve((0.5 %* %X %- (0.5 * 1j) %* %Y) %@ %A %+ (0.5 %* %X %+ (0.5 * 1j) %* %Y) %@ %C, 1, [q[0], m[0]])
+
+        m
+        """
+
+        program, interp, out = backend.run(source, fock_cutoff=4)
+
+        assert_register_eq(
+            out[0][1],
+            QubitRegister(
+                name=[
+                    QubitName(name="m", index=0, dim=4),
+                    QubitName(name="q", index=0, dim=2),
+                ],
+                time_last_updated=1,
+                state=qutip.Qobj(
+                    (
+                        -1j
+                        * (
+                            qutip.tensor(qutip.create(4), qutip.sigmap())
+                            + qutip.tensor(qutip.destroy(4), qutip.sigmam())
+                        )
+                    )
+                    .expm()
+                    .full()[:, 0:1],
+                    dims=[[4, 2], [1, 1]],
+                ),
+            ),
+        )
+
+    @pytest.mark.skip(
+        reason="Verify hamiltonian dimension consistency not working for variables"
+    )
+    def test_qutip_operator_with_variable(self, backend):
+        source = """
+        q = qreg(1)
+        m = qmode(1)
+        
+        initialize(q)
+        initialize(m)
+
+        sigmap = (0.5 %* %X %+ (0.5 * 1j) %* %Y)
+        sigmam = (0.5 %* %X %- (0.5 * 1j) %* %Y)
+        
+        evolve(sigmap %@ %A %+ sigmam %@ %C, 1, [q[0], m[0]])
+
+        m
+        """
+
+        program, interp, out = backend.run(source, fock_cutoff=4)
+
+        assert_register_eq(
+            out[0][1],
+            QubitRegister(
+                name=[
+                    QubitName(name="m", index=0, dim=4),
+                    QubitName(name="q", index=0, dim=2),
+                ],
+                time_last_updated=1,
+                state=qutip.Qobj(
+                    (
+                        -1j
+                        * (
+                            qutip.tensor(qutip.create(4), qutip.sigmap())
+                            + qutip.tensor(qutip.destroy(4), qutip.sigmam())
+                        )
+                    )
+                    .expm()
+                    .full()[:, 0:1],
+                    dims=[[4, 2], [1, 1]],
+                ),
+            ),
+        )
