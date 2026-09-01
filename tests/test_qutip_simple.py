@@ -15,13 +15,20 @@
 import numpy as np
 import pytest
 
+from oqd_analog_emulator.method_table import QuantumRegister, RegisterName
 from oqd_analog_emulator.qutip_backend import QutipBackend
+
+########################################################################################
 
 
 def interpreter(program):
     backend = QutipBackend()
-    program, _, output = backend.run(program)
+    program, interp, output = backend.run(program)
+
     return output
+
+
+########################################################################################
 
 
 class TestQutipBackend:
@@ -151,6 +158,7 @@ class TestQutipBackend:
         [
             ("[[1], 2, 3]", [[1], 2, 3]),
             ("[[1, 2], 3]", [[1, 2], 3]),
+            ("[[2], [3], [5, [6]]]", [[2], [3], [5, [6]]]),
         ],
     )
     def test_qutip_nested_list(self, program, expected):
@@ -218,58 +226,89 @@ class TestQutipBackend:
         output = interpreter(program)
         assert output == expected
 
-
-class TestQutipEvolve:
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
-            ("r = qreg(1) \n initialize(r[0]) \n result = evolve(%X, 1, r[0])", []),
-            ("r = qreg(2) \n initialize(r) \n result = evolve(%X, 1, r[0])", []),
-            ("r = qreg(5) \n initialize(r) \n result = evolve(%Y, 1, r[1])", []),
-            ("r = qreg(2) \n initialize(r[0]) \n result = evolve(%Z, 1, r[0])", []),
+            ("a = 1 \n b = a \n b", 1),
+            ("a = 1 \n b = a \n c = b \n c", 1),
+            ("a = 1 \n b = a \n c = b + 1 \n c", 2),
+            ("a = 0 \n b = a \n c = sin(b) \n c", np.sin(0)),
+            ("a = 0 \n c = a \n b = 1 \n c = b \n c", 1),
+            (
+                "r = qreg(2) \n q = r \n initialize(q) \n evolve(%X %@ %X, 1, q) \n result = evolve(%X, 1, q[0])",
+                [],
+            ),
         ],
     )
-    def test_qutip_single_qubit(self, program, expected):
+    def test_qutip_alias(self, program, expected):
         output = interpreter(program)
         assert output == expected
 
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
-            ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %I, 1, r)", []),
-            ("r = qreg(2) \n initialize(r) \n result = evolve(%X %@ %X, 1, r)", []),
+            ("a = [1, 2] \n a[0]", 1),
+            ("a = [1, 2] \n a[1]", 2),
             (
-                "r = qreg(3) \n initialize(r) \n result = evolve(%Y %@ %I, 1, [r[0], r[2]])",
-                [],
+                "r = qreg(2) \n r[0]",
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=0, dim=2)],
+                    time=0,
+                    time_last_updated=0,
+                    state=[],
+                ),
             ),
             (
-                "r = qreg(5) \n initialize(r) \n result = evolve(%Z %@ %I, 1, [r[1], r[4]])",
-                [],
+                "r = qreg(2) \n r[1]",
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=1, dim=2)],
+                    time=0,
+                    time_last_updated=0,
+                    state=[],
+                ),
             ),
         ],
     )
-    def test_qutip_two_qubits(self, program, expected):
+    def test_qutip_extract(self, program, expected):
         output = interpreter(program)
         assert output == expected
 
     @pytest.mark.parametrize(
         ("program", "expected"),
         [
+            ("a = [1, 2] \n b = a \n b[0]", 1),
+            ("a = [1, 2] \n b = a \n b[1]", 2),
             (
-                "r = qreg(2) \n initialize(r) \n evolve(%X %@ %X, 1, r) \n result = evolve(%X, 1, r[0])",
-                [],
+                "r = qreg(2) \n q = r \n q[0]",
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=0, dim=2)],
+                    time=0,
+                    time_last_updated=0,
+                    state=[],
+                ),
             ),
             (
-                "r = qreg(5) \n initialize(r) \n evolve(%X %@ %X, 1, [r[0], r[1]]) \n result = evolve(%X, 1, r[1])",
-                [],
-            ),
-            (
-                "r = qreg(4) \n initialize(r) \n evolve(%X %@ %X %@ %X, 1, [r[0], r[1], r[2]]) \n result = evolve(%X, 1, r[0])",
-                [],
+                "r = qreg(2) \n q = r \n q[1]",
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=1, dim=2)],
+                    time=0,
+                    time_last_updated=0,
+                    state=[],
+                ),
             ),
         ],
     )
-    def test_qutip_hamiltonian_padding(self, program, expected):
+    def test_qutip_alias_extract(self, program, expected):
         output = interpreter(program)
         assert output == expected
 
+    @pytest.mark.xfail(raises=ValueError, reason="Out-of-bounds indexing of array")
+    @pytest.mark.parametrize(
+        "program",
+        [
+            "a = [1, 2] \n a[2]",
+            "r = qreg(2) \n r[2]",
+        ],
+    )
+    def test_xfail_qutip_extract(self, program):
+        interpreter(program)

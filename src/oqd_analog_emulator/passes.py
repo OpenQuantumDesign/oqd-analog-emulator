@@ -21,8 +21,8 @@ from oqd_compiler_infrastructure import ConversionRule
 
 class QutipQobjEvoGenerator(ConversionRule):
     """
-    This is a ConversionRule which compiles analog layer objects to QutipExperiment objects
-
+    This is a ConversionRule which compiles analog layer objects to Qutip objects / lambda functions
+    This Generator is used to convert non-constant statements that use a MathVar object to their QuTip representations during program execution.
     Args:
         model (VisitableBaseModel): This takes in objects in Analog level and converts them to representations which can be used to run QuTip simulations.
 
@@ -68,7 +68,6 @@ class QutipQobjEvoGenerator(ConversionRule):
         return operands["op1"] + operands["op2"]
 
     def map_OperatorMul(self, model, operands):
-        # print(operands)
         return qt.QobjEvo(lambda t: operands["op1"](t) * operands["op2"](t))
 
     def map_OperatorKron(self, model, operands):

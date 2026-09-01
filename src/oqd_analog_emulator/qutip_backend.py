@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
 from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
 from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
@@ -20,15 +21,33 @@ from oqd_core.backend.program import AnalogProgram
 from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
 from oqd_core.frontend.analog import parse_analog
 
-from oqd_analog_emulator.interpreter import QutipInterpreter
+from oqd_analog_emulator.interpreter import AnalogInterpreter
+from oqd_analog_emulator.method_table import (
+    ArithmeticMixin,
+    BoolMixin,
+    MethodTableBase,
+    QutipMixin,
+    StackStoreMixin,
+)
 
 ########################################################################################
 
 __all__ = [
     "QutipBackend",
+    "QutipMethodTable",
 ]
 
 ########################################################################################
+
+
+class QutipMethodTable(
+    MethodTableBase, ArithmeticMixin, BoolMixin, QutipMixin, StackStoreMixin
+):
+    def __init__(self, n_shots, fock_cutoff, dt):
+        self._n_shots = n_shots
+        self._fock_cutoff = fock_cutoff
+        self._dt = dt
+        self._GLOBAL_T = 0.0
 
 
 class QutipBackend(BackendBase):
@@ -52,7 +71,13 @@ class QutipBackend(BackendBase):
 
         return program
 
-    def run(self, program: str | AnalogProgram = None, n_shots: int = 10, fock_cutoff: int = 4, dt: float = 0.1,):
+    def run(
+        self,
+        program: str | AnalogProgram = None,
+        n_shots: int = 10,
+        fock_cutoff: int = 4,
+        dt: float = 1e-2,
+    ):
         """
         Method to simulate an experiment using the QuTip backend
 
@@ -69,8 +94,11 @@ class QutipBackend(BackendBase):
             raise TypeError("Provide valid analog code or AnalogProgram.")
 
         cfg = program.cfg
+        method_table = QutipMethodTable(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
 
-        interpreter = QutipInterpreter(graph=cfg)
-        output = interpreter.run()
+        interpreter = AnalogInterpreter(
+            method_table=method_table, fock_cutoff=fock_cutoff
+        )
+        output = interpreter.run(cfg=cfg)
 
         return program, interpreter, output
