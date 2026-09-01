@@ -309,7 +309,10 @@ class QutipMixin:
         duration = args[1]
         hamiltonian = args[2]
 
-        tspan = np.linspace(0, duration, round(duration / self._dt)).tolist()
+        tspan = np.arange(0, duration, self._dt)
+        if tspan[-1] != duration:
+            tspan = np.concat([tspan, [duration]])
+        tspan += self._GLOBAL_T
 
         if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
             qobjevo_gen = Post(
