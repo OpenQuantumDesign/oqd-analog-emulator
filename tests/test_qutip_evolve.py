@@ -654,9 +654,6 @@ class TestQutipModeEvolve:
 
 
 class TestQutipCombinedEvolve:
-    @pytest.mark.skip(
-        reason="Verify hamiltonian dimension not called for evolve statement in oqd_core.compiler.analog.cfg_passes.canonicalize_operators_cfg"
-    )
     def test_qutip_red_sideband(self, backend):
         source = """
         q = qreg(1)
@@ -695,9 +692,6 @@ class TestQutipCombinedEvolve:
             ),
         )
 
-    @pytest.mark.skip(
-        reason="Verify hamiltonian dimension not called for evolve statement in oqd_core.compiler.analog.cfg_passes.canonicalize_operators_cfg"
-    )
     def test_qutip_blue_sideband(self, backend):
         source = """
         q = qreg(1)
