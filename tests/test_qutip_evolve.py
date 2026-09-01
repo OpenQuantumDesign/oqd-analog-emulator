@@ -17,7 +17,7 @@ import pytest
 import qutip
 from oqd_core.compiler.analog.error import AnalogCompilerError
 
-from oqd_analog_emulator.method_table import QubitName, QubitRegister
+from oqd_analog_emulator.method_table import QuantumRegister, RegisterName
 from oqd_analog_emulator.qutip_backend import QutipBackend
 
 ########################################################################################
@@ -152,8 +152,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=0,
                 state=qutip.basis(2, 0),
             ),
@@ -161,8 +161,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[1][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=1, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=1, dim=2)],
                 time_last_updated=0,
                 state=qutip.basis(2, 0),
             ),
@@ -180,8 +180,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=1, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=1, dim=2)],
                 time_last_updated=0,
                 state=qutip.basis(2, 0),
             ),
@@ -189,8 +189,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[1][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=0,
                 state=qutip.basis(2, 0),
             ),
@@ -209,8 +209,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=0,
                 state=qutip.basis(2, 0),
             ),
@@ -218,8 +218,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[1][1],
-            QubitRegister(
-                name=[QubitName(name="r", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="r", index=0, dim=2)],
                 time_last_updated=0,
                 state=qutip.basis(2, 0),
             ),
@@ -259,8 +259,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=1,
                 state=np.cos(1) * qutip.basis(2, 0)
                 - 1j * np.sin(1) * qutip.basis(2, 1),
@@ -282,8 +282,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=10,
                 state=np.exp(-1j * 10) * qutip.basis(2, 0),
             ),
@@ -291,8 +291,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[1][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=1, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=1, dim=2)],
                 time_last_updated=11,
                 state=np.cos(1) * qutip.basis(2, 0)
                 - 1j * np.sin(1) * qutip.basis(2, 1),
@@ -316,8 +316,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=1,
                 state=qutip.basis(2, 0),
             ),
@@ -340,8 +340,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=phi,
                 state=np.cos(phi) * qutip.basis(2, 0) + np.sin(phi) * qutip.basis(2, 1),
             ),
@@ -364,10 +364,10 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
+            QuantumRegister(
                 name=[
-                    QubitName(name="q", index=0, dim=2),
-                    QubitName(name="q", index=1, dim=2),
+                    RegisterName(name="q", index=0, dim=2),
+                    RegisterName(name="q", index=1, dim=2),
                 ],
                 time_last_updated=phi,
                 state=np.cos(phi) * qutip.basis([2, 2], [0, 0])
@@ -382,10 +382,10 @@ class TestQutipQubitsEvolve:
         [
             (
                 [0, 0],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi / 4,
                     state=(
@@ -396,10 +396,10 @@ class TestQutipQubitsEvolve:
             ),
             (
                 [0, 1],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 3 / 4,
                     state=(
@@ -410,10 +410,10 @@ class TestQutipQubitsEvolve:
             ),
             (
                 [1, 0],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 3 / 4,
                     state=(
@@ -424,10 +424,10 @@ class TestQutipQubitsEvolve:
             ),
             (
                 [1, 1],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 3 / 4,
                     state=(
@@ -464,10 +464,10 @@ class TestQutipQubitsEvolve:
         [
             (
                 [0, 0],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 6 / 4,
                     state=qutip.basis([2, 2], [0, 0]),
@@ -475,10 +475,10 @@ class TestQutipQubitsEvolve:
             ),
             (
                 [0, 1],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 8 / 4,
                     state=qutip.basis([2, 2], [0, 1]),
@@ -486,10 +486,10 @@ class TestQutipQubitsEvolve:
             ),
             (
                 [1, 0],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 8 / 4,
                     state=qutip.basis([2, 2], [1, 1]),
@@ -497,10 +497,10 @@ class TestQutipQubitsEvolve:
             ),
             (
                 [1, 1],
-                QubitRegister(
+                QuantumRegister(
                     name=[
-                        QubitName(name="q", index=0, dim=2),
-                        QubitName(name="q", index=1, dim=2),
+                        RegisterName(name="q", index=0, dim=2),
+                        RegisterName(name="q", index=1, dim=2),
                     ],
                     time_last_updated=np.pi * 8 / 4,
                     state=qutip.basis([2, 2], [1, 0]),
@@ -549,8 +549,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=duration,
                 state=np.cos(duration**2 / 2) * qutip.basis(2, 0)
                 + np.sin(duration**2 / 2) * qutip.basis(2, 1),
@@ -575,8 +575,8 @@ class TestQutipQubitsEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="q", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="q", index=0, dim=2)],
                 time_last_updated=duration + 2 * np.pi,
                 state=np.cos(duration**2 / 2) * qutip.basis(2, 0)
                 + np.sin(duration**2 / 2) * qutip.basis(2, 1),
@@ -597,8 +597,8 @@ class TestQutipModeEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="m", index=0, dim=4)],
+            QuantumRegister(
+                name=[RegisterName(name="m", index=0, dim=4)],
                 time_last_updated=0,
                 state=qutip.basis(4, 0),
             ),
@@ -618,8 +618,8 @@ class TestQutipModeEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="m", index=0, dim=2)],
+            QuantumRegister(
+                name=[RegisterName(name="m", index=0, dim=2)],
                 time_last_updated=1,
                 state=np.cos(1) * qutip.basis(2, 0)
                 - 1j * np.sin(1) * qutip.basis(2, 1),
@@ -641,8 +641,8 @@ class TestQutipModeEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
-                name=[QubitName(name="m", index=0, dim=fock_cutoff)],
+            QuantumRegister(
+                name=[RegisterName(name="m", index=0, dim=fock_cutoff)],
                 time_last_updated=1,
                 state=qutip.Qobj(
                     (-1j * (qutip.create(fock_cutoff) + qutip.destroy(fock_cutoff)))
@@ -671,10 +671,10 @@ class TestQutipCombinedEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
+            QuantumRegister(
                 name=[
-                    QubitName(name="m", index=0, dim=4),
-                    QubitName(name="q", index=0, dim=2),
+                    RegisterName(name="m", index=0, dim=4),
+                    RegisterName(name="q", index=0, dim=2),
                 ],
                 time_last_updated=1,
                 state=qutip.Qobj(
@@ -709,10 +709,10 @@ class TestQutipCombinedEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
+            QuantumRegister(
                 name=[
-                    QubitName(name="m", index=0, dim=4),
-                    QubitName(name="q", index=0, dim=2),
+                    RegisterName(name="m", index=0, dim=4),
+                    RegisterName(name="q", index=0, dim=2),
                 ],
                 time_last_updated=1,
                 state=qutip.Qobj(
@@ -753,10 +753,10 @@ class TestQutipCombinedEvolve:
 
         assert_register_eq(
             out[0][1],
-            QubitRegister(
+            QuantumRegister(
                 name=[
-                    QubitName(name="m", index=0, dim=4),
-                    QubitName(name="q", index=0, dim=2),
+                    RegisterName(name="m", index=0, dim=4),
+                    RegisterName(name="q", index=0, dim=2),
                 ],
                 time_last_updated=1,
                 state=qutip.Qobj(

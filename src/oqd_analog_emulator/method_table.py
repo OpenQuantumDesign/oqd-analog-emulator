@@ -33,7 +33,7 @@ from oqd_analog_emulator.interpreter import AnalogVMNULL
 from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 
 
-class QubitName(VisitableBaseModel):
+class RegisterName(VisitableBaseModel):
     name: str
     index: int
     dim: int
@@ -42,8 +42,8 @@ class QubitName(VisitableBaseModel):
         return hash((self.name, self.index))
 
 
-class QubitRegister(VisitableBaseModel):
-    name: List[QubitName] = []
+class QuantumRegister(VisitableBaseModel):
+    name: List[RegisterName] = []
     time_last_updated: float
     state: object
 
@@ -187,7 +187,7 @@ class StackStoreMixin:
 
 class QutipMixin:
     def _new_register(self, name, state):
-        return QubitRegister(name=name, time_last_updated=self._GLOBAL_T, state=state)
+        return QuantumRegister(name=name, time_last_updated=self._GLOBAL_T, state=state)
 
     def run_KRON(self, stack, store, registers):
         op2 = stack.pop()
@@ -242,7 +242,7 @@ class QutipMixin:
     def run_QREG(self, name, size, dim, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            qubit = QubitName(name=name, index=n, dim=dim)
+            qubit = RegisterName(name=name, index=n, dim=dim)
             obj = self._new_register(
                 name=[qubit],
                 state=[],
@@ -254,7 +254,7 @@ class QutipMixin:
     def run_MREG(self, name, size, stack, store, registers):
         store[name] = [ListTerminators.LISTSTART]
         for n in range(size):
-            qubit = QubitName(name=name, index=n, dim=self._fock_cutoff)
+            qubit = RegisterName(name=name, index=n, dim=self._fock_cutoff)
             obj = self._new_register(
                 name=[qubit],
                 state=[],
@@ -367,7 +367,7 @@ class MethodTableBase(BaseModel):
         MethodTableRegistry.register(cls)
 
     def get_state(self, return_values, stack, store, registers):
-        if isinstance(return_values, QubitName):
+        if isinstance(return_values, RegisterName):
             return registers[return_values]
 
         if not isinstance(return_values, list):
@@ -379,7 +379,7 @@ class MethodTableBase(BaseModel):
                 continue
             if isinstance(value, list):
                 out.append(self.get_state(value, stack, store, registers))
-            elif isinstance(value, QubitName):
+            elif isinstance(value, RegisterName):
                 out.append((value, registers[value]))
             else:
                 out.append(value)

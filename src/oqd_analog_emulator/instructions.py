@@ -123,7 +123,7 @@ class OpCode(Enum):
                 return 0
 
 
-class QutipBackendInstruction(TypeReflectBaseModel):
+class AnalogInstruction(TypeReflectBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     opcode: OpCode
     args: list[Any] = []
@@ -136,22 +136,18 @@ class QutipBackendInstruction(TypeReflectBaseModel):
         return self
 
 
-class QutipBackendInstructions(TypeReflectBaseModel):
-    instructions: list[QutipBackendInstruction] = []
+class AnalogInstructions(TypeReflectBaseModel):
+    instructions: list[AnalogInstruction] = []
 
     def __add__(self, other):
-        if isinstance(other, QutipBackendInstruction):
-            return QutipBackendInstructions(instructions=self.instructions + [other])
-        return QutipBackendInstructions(
-            instructions=self.instructions + other.instructions
-        )
+        if isinstance(other, AnalogInstruction):
+            return AnalogInstructions(instructions=self.instructions + [other])
+        return AnalogInstructions(instructions=self.instructions + other.instructions)
 
     def __radd__(self, other):
-        if isinstance(other, QutipBackendInstruction):
-            return QutipBackendInstructions(instructions=[other] + self)
-        return QutipBackendInstructions(
-            instructions=other.instructions + self.instructions
-        )
+        if isinstance(other, AnalogInstruction):
+            return AnalogInstructions(instructions=[other] + self)
+        return AnalogInstructions(instructions=other.instructions + self.instructions)
 
 
 def _is_constant_math(model) -> bool:
@@ -171,265 +167,259 @@ def _is_constant_math(model) -> bool:
     return True
 
 
-class QutipBackendInstructionsCodegen(RewriteRule):
+class AnalogInstructionsCodegen(RewriteRule):
     def __init__(self, fock_cutoff: int = 4):
         super().__init__()
         self._fock_cutoff = fock_cutoff
 
     def map_Access(self, model: Access):
-        instruction = QutipBackendInstruction(opcode=OpCode.LOAD, args=[model.name])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.LOAD, args=[model.name])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_Declaration(self, model: Declaration):
         if not _is_constant_math(model):
-            instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
-            return QutipBackendInstructions(instructions=[instruction])
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
+            return AnalogInstructions(instructions=[instruction])
         if isinstance(model.value, QuantumRegister):
             return self.map_QuantumRegister(model.value, model.name)
         if isinstance(model.value, ModeRegister):
             return self.map_ModeRegister(model.value, model.name)
 
-        instr1 = QutipBackendInstruction(opcode=OpCode.GLOBAL, args=[model.name])
+        instr1 = AnalogInstruction(opcode=OpCode.GLOBAL, args=[model.name])
         if isinstance(model.value, Access):
-            instr2 = QutipBackendInstruction(
+            instr2 = AnalogInstruction(
                 opcode=OpCode.CONST, args=[Alias(target=model.value.name)]
             )
         else:
             instr2 = self(model.value)
-        instr3 = QutipBackendInstruction(opcode=OpCode.STORE, args=[model.name])
-        instructions = QutipBackendInstructions(instructions=[instr1]) + instr2 + instr3
+        instr3 = AnalogInstruction(opcode=OpCode.STORE, args=[model.name])
+        instructions = AnalogInstructions(instructions=[instr1]) + instr2 + instr3
         return instructions
 
     def map_MathNum(self, model: MathNum):
         if not _is_constant_math(model):
-            instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
-            instruction = QutipBackendInstruction(
-                opcode=OpCode.CONST, args=[model.value]
-            )
-        return QutipBackendInstructions(instructions=[instruction])
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model.value])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_MathImag(self, model: MathImag):
         if not _is_constant_math(model):
-            instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
-            instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[1j])
-        return QutipBackendInstructions(instructions=[instruction])
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[1j])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_MathAdd(self, model: MathAdd):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.expr1) + self(model.expr2)
-            instructions += QutipBackendInstruction(opcode=OpCode.ADD)
+            instructions += AnalogInstruction(opcode=OpCode.ADD)
         return instructions
 
     def map_MathSub(self, model: MathSub):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.expr1) + self(model.expr2)
-            instructions += QutipBackendInstruction(opcode=OpCode.SUB)
+            instructions += AnalogInstruction(opcode=OpCode.SUB)
         return instructions
 
     def map_MathMul(self, model: MathMul):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.expr1) + self(model.expr2)
-            instructions += QutipBackendInstruction(opcode=OpCode.MUL)
+            instructions += AnalogInstruction(opcode=OpCode.MUL)
         return instructions
 
     def map_OperatorMul(self, model: OperatorMul):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.op1) + self(model.op2)
-            instructions += QutipBackendInstruction(opcode=OpCode.MUL)
+            instructions += AnalogInstruction(opcode=OpCode.MUL)
         return instructions
 
     def map_OperatorAdd(self, model: OperatorAdd):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.op1) + self(model.op2)
-            instructions += QutipBackendInstruction(opcode=OpCode.ADD)
+            instructions += AnalogInstruction(opcode=OpCode.ADD)
         return instructions
 
     def map_OperatorSub(self, model: OperatorSub):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.op1) + self(model.op2)
-            instructions += QutipBackendInstruction(opcode=OpCode.SUB)
+            instructions += AnalogInstruction(opcode=OpCode.SUB)
         return instructions
 
     def map_MathDiv(self, model: MathDiv):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.expr1) + self(model.expr2)
-            instructions += QutipBackendInstruction(opcode=OpCode.DIV)
+            instructions += AnalogInstruction(opcode=OpCode.DIV)
         return instructions
 
     def map_MathPow(self, model: MathPow):
-        instructions = QutipBackendInstructions()
+        instructions = AnalogInstructions()
         if not _is_constant_math(model):
-            instructions += QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
+            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
         else:
             instructions += self(model.expr1) + self(model.expr2)
-            instructions += QutipBackendInstruction(opcode=OpCode.POW)
+            instructions += AnalogInstruction(opcode=OpCode.POW)
         return instructions
 
     def map_MathVar(self, model: MathVar):
-        instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_MathFunc(self, model: MathFunc):
         if not _is_constant_math(model):
-            instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
-            return QutipBackendInstructions(instructions=[instruction])
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
+            return AnalogInstructions(instructions=[instruction])
         if isinstance(model.expr, list):
-            instructions = QutipBackendInstructions()
+            instructions = AnalogInstructions()
             for expr in model.expr:
                 instructions += self(expr)
         else:
             instructions = self(model.expr)
-        instr1 = QutipBackendInstruction(opcode=OpCode.FUNC, args=[model.func])
+        instr1 = AnalogInstruction(opcode=OpCode.FUNC, args=[model.func])
         instructions += instr1
         return instructions
 
     def map_PauliI(self, model: PauliI):
-        instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[qt.qeye(2)])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.qeye(2)])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_PauliX(self, model: PauliX):
-        instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[qt.sigmax()])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.sigmax()])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_PauliY(self, model: PauliY):
-        instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[qt.sigmay()])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.sigmay()])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_PauliZ(self, model: PauliZ):
-        instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[qt.sigmaz()])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.sigmaz()])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_Identity(self, model: Identity):
-        instruction = QutipBackendInstruction(
+        instruction = AnalogInstruction(
             opcode=OpCode.CONST, args=[qt.qeye(self._fock_cutoff)]
         )
-        return QutipBackendInstructions(instructions=[instruction])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_Creation(self, model: Annihilation):
-        instruction = QutipBackendInstruction(
+        instruction = AnalogInstruction(
             opcode=OpCode.CONST, args=[qt.create(self._fock_cutoff)]
         )
-        return QutipBackendInstructions(instructions=[instruction])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_Annihilation(self, model: Creation):
-        instruction = QutipBackendInstruction(
+        instruction = AnalogInstruction(
             opcode=OpCode.CONST, args=[qt.destroy(self._fock_cutoff)]
         )
-        return QutipBackendInstructions(instructions=[instruction])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_OperatorKron(self, model: OperatorKron):
         if not _is_constant_math(model):
-            instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model])
-            return QutipBackendInstructions(instructions=[instruction])
-        instr1 = QutipBackendInstruction(opcode=OpCode.KRON)
+            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
+            return AnalogInstructions(instructions=[instruction])
+        instr1 = AnalogInstruction(opcode=OpCode.KRON)
         instructions = self(model.op1) + self(model.op2) + instr1
         return instructions
 
     def map_Bool(self, model: Bool):
-        instruction = QutipBackendInstruction(opcode=OpCode.CONST, args=[model.value])
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model.value])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_BoolNot(self, model: BoolNot):
-        instr1 = QutipBackendInstruction(opcode=OpCode.NOT)
+        instr1 = AnalogInstruction(opcode=OpCode.NOT)
         instructions = self(model.expr) + instr1
         return instructions
 
     def map_BoolAnd(self, model: BoolAnd):
-        instr1 = QutipBackendInstruction(opcode=OpCode.AND)
+        instr1 = AnalogInstruction(opcode=OpCode.AND)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolOr(self, model: BoolOr):
-        instr1 = QutipBackendInstruction(opcode=OpCode.OR)
+        instr1 = AnalogInstruction(opcode=OpCode.OR)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolEq(self, model: BoolEq):
-        instr1 = QutipBackendInstruction(opcode=OpCode.EQ)
+        instr1 = AnalogInstruction(opcode=OpCode.EQ)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolNotEq(self, model: BoolNotEq):
-        instr1 = QutipBackendInstruction(opcode=OpCode.NEQ)
+        instr1 = AnalogInstruction(opcode=OpCode.NEQ)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolLessThan(self, model: BoolLessThan):
-        instr1 = QutipBackendInstruction(opcode=OpCode.LT)
+        instr1 = AnalogInstruction(opcode=OpCode.LT)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolLessThanEq(self, model: BoolLessThanEq):
-        instr1 = QutipBackendInstruction(opcode=OpCode.LTEQ)
+        instr1 = AnalogInstruction(opcode=OpCode.LTEQ)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolGreaterThan(self, model: BoolGreaterThan):
-        instr1 = QutipBackendInstruction(opcode=OpCode.GT)
+        instr1 = AnalogInstruction(opcode=OpCode.GT)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_BoolGreaterThanEq(self, model: BoolGreaterThanEq):
-        instr1 = QutipBackendInstruction(opcode=OpCode.GTEQ)
+        instr1 = AnalogInstruction(opcode=OpCode.GTEQ)
         instructions = self(model.expr1) + self(model.expr2) + instr1
         return instructions
 
     def map_QuantumRegister(self, model: QuantumRegister, name: str):
-        instruction = QutipBackendInstruction(
-            opcode=OpCode.QREG, args=[name, model.size, 2]
-        )
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.QREG, args=[name, model.size, 2])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_ModeRegister(self, model: ModeRegister, name: str):
-        instruction = QutipBackendInstruction(
-            opcode=OpCode.MREG, args=[name, model.size]
-        )
-        return QutipBackendInstructions(instructions=[instruction])
+        instruction = AnalogInstruction(opcode=OpCode.MREG, args=[name, model.size])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_AnalogList(self, model: AnalogList):
-        instructions = QutipBackendInstructions()
-        instructions += QutipBackendInstruction(
+        instructions = AnalogInstructions()
+        instructions += AnalogInstruction(
             opcode=OpCode.CONST, args=[ListTerminators.LISTEND]
         )
         for i in list(range(len(model.values) - 1, -1, -1)):
             value = model.values[i]
             instructions += self(value)
-        instructions += QutipBackendInstruction(
+        instructions += AnalogInstruction(
             opcode=OpCode.CONST, args=[ListTerminators.LISTSTART]
         )
         return instructions
 
     def map_Extract(self, model: Extract):
-        instruction = QutipBackendInstruction(
+        instruction = AnalogInstruction(
             opcode=OpCode.EXTRACT, args=[model.access.name, model.index]
         )
-        return QutipBackendInstructions(instructions=[instruction])
+        return AnalogInstructions(instructions=[instruction])
 
     def map_Evolve(self, model: Evolve):
-        instr1 = QutipBackendInstruction(opcode=OpCode.EVOLVE)
+        instr1 = AnalogInstruction(opcode=OpCode.EVOLVE)
         instructions = (
             self(model.hamiltonian)
             + self(model.duration)
@@ -439,11 +429,11 @@ class QutipBackendInstructionsCodegen(RewriteRule):
         return instructions
 
     def map_Initialize(self, model: Initialize):
-        instr1 = QutipBackendInstruction(opcode=OpCode.INIT)
+        instr1 = AnalogInstruction(opcode=OpCode.INIT)
         instructions = self(model.targets) + instr1
         return instructions
 
     def map_Measure(self, model: Measure):
-        instr1 = QutipBackendInstruction(opcode=OpCode.MEASURE)
+        instr1 = AnalogInstruction(opcode=OpCode.MEASURE)
         instructions = self(model.targets) + instr1
         return instructions

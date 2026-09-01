@@ -18,9 +18,9 @@ from oqd_compiler_infrastructure import VisitableBaseModel
 from oqd_core.analysis.utils import ControlFlowGraph
 
 from oqd_analog_emulator.instructions import (
+    AnalogInstructions,
+    AnalogInstructionsCodegen,
     ListTerminators,
-    QutipBackendInstructions,
-    QutipBackendInstructionsCodegen,
 )
 
 ########################################################################################
@@ -82,7 +82,7 @@ class AnalogVirtualMachine:
             return_values, self.stack, self.store, self.registers
         )
 
-    def run(self, instructions: QutipBackendInstructions):
+    def run(self, instructions: AnalogInstructions):
         for instruction in instructions.instructions:
             opcode = instruction.opcode.name
             args = instruction.args
@@ -115,7 +115,7 @@ class AnalogInterpreter:
         self.INSTRUCTIONS = []
         self.codegen = codegen
         if codegen is None:
-            self.codegen = QutipBackendInstructionsCodegen(fock_cutoff=fock_cutoff)
+            self.codegen = AnalogInstructionsCodegen(fock_cutoff=fock_cutoff)
 
     def get_block(self, node: int = 0):
         return self.graph.blocks[node]

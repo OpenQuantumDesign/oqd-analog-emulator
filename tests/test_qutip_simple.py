@@ -15,8 +15,10 @@
 import numpy as np
 import pytest
 
-from oqd_analog_emulator.method_table import QubitName, QubitRegister
+from oqd_analog_emulator.method_table import QuantumRegister, RegisterName
 from oqd_analog_emulator.qutip_backend import QutipBackend
+
+########################################################################################
 
 
 def interpreter(program):
@@ -24,6 +26,9 @@ def interpreter(program):
     program, interp, output = backend.run(program)
 
     return output
+
+
+########################################################################################
 
 
 class TestQutipBackend:
@@ -246,16 +251,16 @@ class TestQutipBackend:
             ("a = [1, 2] \n a[1]", 2),
             (
                 "r = qreg(2) \n r[0]",
-                QubitRegister(
-                    name=[QubitName(name="r", index=0, dim=2)],
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=0, dim=2)],
                     time_last_updated=0,
                     state=[],
                 ),
             ),
             (
                 "r = qreg(2) \n r[1]",
-                QubitRegister(
-                    name=[QubitName(name="r", index=1, dim=2)],
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=1, dim=2)],
                     time_last_updated=0,
                     state=[],
                 ),
@@ -273,16 +278,16 @@ class TestQutipBackend:
             ("a = [1, 2] \n b = a \n b[1]", 2),
             (
                 "r = qreg(2) \n q = r \n q[0]",
-                QubitRegister(
-                    name=[QubitName(name="r", index=0, dim=2)],
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=0, dim=2)],
                     time_last_updated=0,
                     state=[],
                 ),
             ),
             (
                 "r = qreg(2) \n q = r \n q[1]",
-                QubitRegister(
-                    name=[QubitName(name="r", index=1, dim=2)],
+                QuantumRegister(
+                    name=[RegisterName(name="r", index=1, dim=2)],
                     time_last_updated=0,
                     state=[],
                 ),
