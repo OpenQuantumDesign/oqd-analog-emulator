@@ -253,6 +253,7 @@ class TestQutipBackend:
                 "r = qreg(2) \n r[0]",
                 QuantumRegister(
                     name=[RegisterName(name="r", index=0, dim=2)],
+                    time=0,
                     time_last_updated=0,
                     state=[],
                 ),
@@ -261,6 +262,7 @@ class TestQutipBackend:
                 "r = qreg(2) \n r[1]",
                 QuantumRegister(
                     name=[RegisterName(name="r", index=1, dim=2)],
+                    time=0,
                     time_last_updated=0,
                     state=[],
                 ),
@@ -280,6 +282,7 @@ class TestQutipBackend:
                 "r = qreg(2) \n q = r \n q[0]",
                 QuantumRegister(
                     name=[RegisterName(name="r", index=0, dim=2)],
+                    time=0,
                     time_last_updated=0,
                     state=[],
                 ),
@@ -288,6 +291,7 @@ class TestQutipBackend:
                 "r = qreg(2) \n q = r \n q[1]",
                 QuantumRegister(
                     name=[RegisterName(name="r", index=1, dim=2)],
+                    time=0,
                     time_last_updated=0,
                     state=[],
                 ),

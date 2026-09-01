@@ -44,6 +44,7 @@ class RegisterName(VisitableBaseModel):
 
 class QuantumRegister(VisitableBaseModel):
     name: List[RegisterName] = []
+    time: float
     time_last_updated: float
     state: object
 
@@ -187,7 +188,12 @@ class StackStoreMixin:
 
 class QutipMixin:
     def _new_register(self, name, state):
-        return QuantumRegister(name=name, time_last_updated=self._GLOBAL_T, state=state)
+        return QuantumRegister(
+            name=name,
+            time=self._GLOBAL_T,
+            time_last_updated=self._GLOBAL_T,
+            state=state,
+        )
 
     def run_KRON(self, stack, store, registers):
         op2 = stack.pop()
@@ -340,6 +346,9 @@ class QutipMixin:
 
         for target in reordered_qubits:
             registers[target] = qreg
+
+        for reg in registers.keys():
+            registers[reg].time = self._GLOBAL_T
 
         stack.push(AnalogVMNULL)
 
