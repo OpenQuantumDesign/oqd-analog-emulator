@@ -202,18 +202,14 @@ class QutipMixin:
 
     def run_INIT(self, stack, store, registers):
         targets = self.get_args(1, stack, store, registers)[0]
-        qubits = []
-        actual_qubits = []
-        if not isinstance(targets, list):
-            targets = [targets]
-        for target, name in targets:
-            qubits.append(target)
-            actual_qubits.append(name)
-        targets = actual_qubits
 
-        for target in targets:
-            target.state = qt.basis(np.prod([n.dim for n in target.name]), 0)
-            target.time_last_updated = self._GLOBAL_T
+        targets = targets if isinstance(targets, list) else [targets]
+
+        for name, target in targets:
+            registers[name].state = qt.basis(
+                np.prod([n.dim for n in registers[name].name]), 0
+            )
+            registers[name].time_last_updated = self._GLOBAL_T
 
         stack.push(AnalogVMNULL)
 
