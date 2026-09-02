@@ -91,14 +91,13 @@ M = TypeVar("MethodTableOptionsTypeVar", bound=MethodTableOptionsBase)
 
 class MethodTableBase(Generic[M]):
     @classmethod
-    @property
-    def options_type(cls):
+    def get_options_type(cls):
         return cls.__orig_bases__[0].__args__[0]
 
     def __init__(self, options: M | None = None, **kwargs):
         super().__init__()
 
-        self.options = options if options else self.options_type(**kwargs)
+        self.options = options if options else self.get_options_type()(**kwargs)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -177,12 +176,12 @@ class MetaMethodTableRegistry(type):
 
     def get_options_type(cls, element):
         if isinstance(element, MethodTableBase):
-            return element.options_type
+            return element.get_options_type()
 
         if issubclass(element, MethodTableBase):
-            return element.options_type
+            return element.get_options_type()
 
-        return cls.method_tables[element].options_type
+        return cls.method_tables[element].get_options_type()
 
 
 class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
