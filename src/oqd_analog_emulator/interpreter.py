@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
 
 from oqd_compiler_infrastructure import VisitableBaseModel
 from oqd_core.analysis.utils import ControlFlowGraph
@@ -23,11 +22,11 @@ from oqd_analog_emulator.instructions import (
     AnalogInstructionsCodegen,
     ListTerminators,
 )
-
-########################################################################################
-
-
-AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
+from oqd_analog_emulator.method_table import (
+    MethodTableBase,
+    MethodTableOptionsBase,
+    MethodTableRegistry,
+)
 
 ########################################################################################
 
@@ -70,30 +69,38 @@ class AnalogStack(VisitableBaseModel):
 
 
 class AnalogVirtualMachine:
-    def __init__(self, method_table):
+    def __init__(
+        self,
+        *,
+        method_table: str | MethodTableBase,
+        options: MethodTableOptionsBase | None = None,
+        **kwargs,
+    ):
         self.stack = AnalogStack()
         self.store = {}
         self.registers = {}
+        self.machine_time = 0.0
 
         self.history = {}
-        self.method_table = method_table
+
+        match method_table:
+            case str():
+                self.method_table = MethodTableRegistry[method_table](
+                    options=options, **kwargs
+                )
+            case MethodTableBase():
+                self.method_table = method_table
+            case _:
+                raise ValueError(f"Invalid method table ({method_table})")
 
     def get_state(self, return_values):
-        return self.method_table.get_state(
-            return_values, self.stack, self.store, self.registers
-        )
+        return self.method_table.get_state(return_values, self)
 
     def run(self, instructions: AnalogInstructions):
         for instruction in instructions.instructions:
             opcode = instruction.opcode.name
             args = instruction.args
-            self.method_table.run(
-                opcode=opcode,
-                args=args,
-                stack=self.stack,
-                store=self.store,
-                registers=self.registers,
-            )
+            self.method_table.run(opcode=opcode, args=args, vm=self)
 
     def clear(self):
         self.stack = AnalogStack()
@@ -105,11 +112,17 @@ class AnalogVirtualMachine:
 class AnalogInterpreter:
     def __init__(
         self,
-        method_table: Any,
-        fock_cutoff: int,
+        *,
+        method_table: str | MethodTableBase,
+        options: MethodTableOptionsBase | None = None,
+        **kwargs,
     ):
-        self.vm = AnalogVirtualMachine(method_table=method_table)
-        self.codegen = AnalogInstructionsCodegen(fock_cutoff=fock_cutoff)
+        self.vm = AnalogVirtualMachine(
+            method_table=method_table, options=options, **kwargs
+        )
+        self.codegen = AnalogInstructionsCodegen(
+            fock_cutoff=self.vm.method_table.options.fock_cutoff
+        )
 
     def evaluate(self, stmt):
         instructions = self.codegen(stmt)

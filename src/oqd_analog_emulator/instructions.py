@@ -65,6 +65,8 @@ from pydantic import (
     model_validator,
 )
 
+########################################################################################
+
 
 class ListTerminators(Enum):
     LISTSTART = 0
@@ -123,6 +125,31 @@ class OpCode(Enum):
                 return 0
 
 
+AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
+
+########################################################################################
+
+
+def _is_constant_math(model) -> bool:
+    if isinstance(model, (Access, MathNum, MathImag)):
+        return True
+    if isinstance(model, MathVar):
+        return False
+    if isinstance(model, MathFunc):
+        arg = model.expr
+        if isinstance(arg, list):
+            return all(_is_constant_math(a) for a in arg)
+        return _is_constant_math(arg)
+    if isinstance(model, (MathAdd, MathSub, MathMul, MathDiv, MathPow)):
+        return _is_constant_math(model.expr1) and _is_constant_math(model.expr2)
+    if isinstance(model, (OperatorAdd, OperatorKron, OperatorMul, OperatorSub)):
+        return _is_constant_math(model.op1) and _is_constant_math(model.op2)
+    return True
+
+
+########################################################################################
+
+
 class AnalogInstruction(TypeReflectBaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     opcode: OpCode
@@ -150,21 +177,7 @@ class AnalogInstructions(TypeReflectBaseModel):
         return AnalogInstructions(instructions=other.instructions + self.instructions)
 
 
-def _is_constant_math(model) -> bool:
-    if isinstance(model, (Access, MathNum, MathImag)):
-        return True
-    if isinstance(model, MathVar):
-        return False
-    if isinstance(model, MathFunc):
-        arg = model.expr
-        if isinstance(arg, list):
-            return all(_is_constant_math(a) for a in arg)
-        return _is_constant_math(arg)
-    if isinstance(model, (MathAdd, MathSub, MathMul, MathDiv, MathPow)):
-        return _is_constant_math(model.expr1) and _is_constant_math(model.expr2)
-    if isinstance(model, (OperatorAdd, OperatorKron, OperatorMul, OperatorSub)):
-        return _is_constant_math(model.op1) and _is_constant_math(model.op2)
-    return True
+########################################################################################
 
 
 class AnalogInstructionsCodegen(RewriteRule):

@@ -26,6 +26,7 @@ from oqd_analog_emulator.method_table import (
     ArithmeticMixin,
     BoolMixin,
     MethodTableBase,
+    MethodTableOptionsBase,
     QutipMixin,
     StackStoreMixin,
 )
@@ -40,14 +41,21 @@ __all__ = [
 ########################################################################################
 
 
+class QutipMethodTableOptions(MethodTableOptionsBase):
+    fock_cutoff: int = 4
+    dt: float = 1e-2
+
+
 class QutipMethodTable(
-    MethodTableBase, ArithmeticMixin, BoolMixin, QutipMixin, StackStoreMixin
-):
-    def __init__(self, n_shots, fock_cutoff, dt):
-        self._n_shots = n_shots
-        self._fock_cutoff = fock_cutoff
-        self._dt = dt
-        self._GLOBAL_T = 0.0
+    MethodTableBase[QutipMethodTableOptions],
+    ArithmeticMixin,
+    BoolMixin,
+    QutipMixin,
+    StackStoreMixin,
+): ...
+
+
+########################################################################################
 
 
 class QutipBackend(BackendBase):
@@ -74,15 +82,16 @@ class QutipBackend(BackendBase):
     def run(
         self,
         program: str | AnalogProgram = None,
-        n_shots: int = 10,
-        fock_cutoff: int = 4,
-        dt: float = 1e-2,
+        *,
+        options: QutipMethodTableOptions | None = None,
+        **kwargs,
     ):
         """
         Method to simulate an experiment using the QuTip backend
 
         Args:
             program (str | AnalogProgram): Run experiment from valid analog code or AnalogProgram object.
+            options (QutipMethodTableOptions): Options for the qutip method table
         Returns:
             Program object, Interpreter object, and the output of the QuTip simulation.
         """
@@ -94,11 +103,10 @@ class QutipBackend(BackendBase):
             raise TypeError("Provide valid analog code or AnalogProgram.")
 
         cfg = program.cfg
-        method_table = QutipMethodTable(n_shots=n_shots, fock_cutoff=fock_cutoff, dt=dt)
 
-        interpreter = AnalogInterpreter(
-            method_table=method_table, fock_cutoff=fock_cutoff
-        )
+        method_table = QutipMethodTable(options=options, **kwargs)
+
+        interpreter = AnalogInterpreter(method_table=method_table)
         output = interpreter.run(cfg=cfg)
 
         return program, interpreter, output
