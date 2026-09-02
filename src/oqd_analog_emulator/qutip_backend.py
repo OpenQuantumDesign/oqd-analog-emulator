@@ -27,7 +27,9 @@ from oqd_analog_emulator.method_table import (
     BoolMixin,
     MethodTableBase,
     MethodTableOptionsBase,
-    QutipMixin,
+    QutipBasicMixin,
+    QutipIncoherentEnsembleMixin,
+    QutipIncoherentSingleShotMixin,
     StackStoreMixin,
 )
 
@@ -50,7 +52,8 @@ class QutipMethodTable(
     MethodTableBase[QutipMethodTableOptions],
     ArithmeticMixin,
     BoolMixin,
-    QutipMixin,
+    QutipBasicMixin,
+    QutipIncoherentSingleShotMixin,
     StackStoreMixin,
 ): ...
 
