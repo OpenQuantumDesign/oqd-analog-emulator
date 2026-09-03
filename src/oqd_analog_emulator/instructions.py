@@ -151,7 +151,7 @@ def _is_constant_math(model) -> bool:
 
 
 class AnalogInstruction(TypeReflectBaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
     opcode: OpCode
     args: list[Any] = []
 

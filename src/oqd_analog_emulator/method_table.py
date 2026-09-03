@@ -16,11 +16,11 @@
 
 import math
 import warnings
-from typing import Generic, List, TypeVar
+from typing import Any, Generic, List, TypeVar
 
 import numpy as np
 import qutip as qt
-from oqd_compiler_infrastructure import Post, VisitableBaseModel
+from oqd_compiler_infrastructure import Post
 from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
 from pydantic import BaseModel, ConfigDict
 
@@ -30,7 +30,9 @@ from oqd_analog_emulator.passes import QutipQobjEvoGenerator
 ########################################################################################
 
 
-class RegisterName(VisitableBaseModel):
+class RegisterName(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     name: str
     index: int
     dim: int
@@ -39,11 +41,13 @@ class RegisterName(VisitableBaseModel):
         return hash((self.name, self.index))
 
 
-class QuantumRegister(VisitableBaseModel):
+class QuantumRegister(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+
     name: List[RegisterName] = []
     time: float
     time_last_updated: float
-    state: object
+    state: Any
 
     def __hash__(self):
         return hash(tuple(self.name))
@@ -82,7 +86,7 @@ class MethodTableOptionsBase(BaseModel):
     model_config = ConfigDict(
         frozen=True,
         arbitrary_types_allowed=True,
-        extra="forbid",
+        validate_assignment=True,
     )
 
 
@@ -314,22 +318,21 @@ class QutipMixin:
         )
 
     def run_QREG(self, name, size, dim, vm):
-        vm.store[name] = [ListTerminators.LISTSTART]
+        if vm.registers.contains_name(name):
+            vm.registers.wipe(name)
+
+        store_value = [ListTerminators.LISTSTART]
         for n in range(size):
             qubit = RegisterName(name=name, index=n, dim=dim)
-            obj = self._new_register(name=[qubit], state=[], vm=vm)
-            vm.registers[qubit] = obj
-            vm.store[name].append(qubit)
-        vm.store[name].append(ListTerminators.LISTEND)
+            reg = self._new_register(name=[qubit], state=None, vm=vm)
+            vm.registers[qubit] = reg
+            store_value.append(qubit)
+        store_value.append(ListTerminators.LISTEND)
+
+        vm.store[name] = store_value
 
     def run_MREG(self, name, size, vm):
-        vm.store[name] = [ListTerminators.LISTSTART]
-        for n in range(size):
-            qubit = RegisterName(name=name, index=n, dim=self.options.fock_cutoff)
-            obj = self._new_register(name=[qubit], state=[], vm=vm)
-            vm.registers[qubit] = obj
-            vm.store[name].append(qubit)
-        vm.store[name].append(ListTerminators.LISTEND)
+        self.run_QREG(name, size, self.options.fock_cutoff, vm)
 
     def run_KRON(self, vm):
         op2 = vm.stack.pop()
