@@ -13,7 +13,9 @@
 # limitations under the License.
 
 
-from oqd_compiler_infrastructure import VisitableBaseModel
+from collections.abc import MutableMapping, MutableSequence
+from typing import Any
+
 from oqd_core.analysis.utils import ControlFlowGraph
 from oqd_core.interface.analog import Break, Continue
 
@@ -26,46 +28,140 @@ from oqd_analog_emulator.method_table import (
     MethodTableBase,
     MethodTableOptionsBase,
     MethodTableRegistry,
+    QuantumRegister,
+    RegisterName,
 )
 
 ########################################################################################
 
 
-class AnalogStack(VisitableBaseModel):
+class AnalogStack(MutableSequence[Any]):
     def __init__(self):
-        self.__index = []
+        self._stack = []
 
-    def __len__(self):
-        return len(self.__index)
+    def __repr__(self):
+        return self._stack.__repr__()
 
     def __str__(self):
-        return str(self.__index)
+        return self._stack.__str__()
+
+    def __len__(self):
+        return len(self._stack)
+
+    def __getitem__(self, idx):
+        return self._stack[idx]
+
+    def __setitem__(self, idx, value):
+        self._stack[idx] = value
+
+    def __delitem__(self, idx):
+        del self._stack[idx]
+
+    def insert(self, idx, value):
+        self._stack.insert(idx, value)
 
     def peek(self):
         if len(self) == 0:
             return None
-        return self.__index[-1]
+        return self[-1]
 
     def push(self, item):
         if isinstance(item, list):
-            self.__index.extend(reversed(item))
+            self.extend(reversed(item))
         else:
-            self.__index.append(item)
+            self.append(item)
 
     def pop(self):
         if len(self) == 0:
             return None
 
-        if self.peek() is not ListTerminators.LISTSTART:
-            return self.__index.pop()
+        out = self._stack.pop()
 
-        out = [self.__index.pop()]
+        if out is not ListTerminators.LISTSTART:
+            return out
+
+        out = [out]
         while True:
             curr = self.pop()
             out.append(curr)
             if curr is ListTerminators.LISTEND:
                 break
         return out
+
+
+class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
+    def __init__(self):
+        self._registers = {}
+
+    def __repr__(self):
+        return self._registers.__repr__()
+
+    def __str__(self):
+        return self._registers.__str__()
+
+    def __len__(self):
+        return len(self._registers)
+
+    def __getitem__(self, key: RegisterName):
+        if not isinstance(key, RegisterName):
+            raise KeyError(
+                f"Keys of AnalogRegisters should be of type RegisterName, got {type(key).__qualname__}"
+            )
+
+        return self._registers[key]
+
+    def __setitem__(self, key: RegisterName, value: QuantumRegister):
+        if not isinstance(key, RegisterName):
+            raise KeyError(
+                f"Keys of AnalogRegisters should be of type RegisterName, got {type(key).__qualname__}"
+            )
+
+        if not isinstance(value, QuantumRegister):
+            raise ValueError(
+                f"Values in AnalogRegisters should be of type QuantumRegister, got {type(value).__qualname__}"
+            )
+
+        self._registers[key] = value
+
+    def __delitem__(self, key: RegisterName):
+        if not isinstance(key, RegisterName):
+            raise KeyError(
+                f"Keys of AnalogRegisters should be of type RegisterName, got {type(key).__qualname__}"
+            )
+
+        del self._registers[key]
+
+    def __iter__(self):
+        return self._registers.__iter__()
+
+    def wipe(self, name: str | RegisterName):
+        match name:
+            case str():
+                keys = list(filter(lambda k: k.name == name, self.keys()))
+            case RegisterName():
+                keys = [name] if name in self else []
+            case _:
+                raise KeyError(
+                    f"Wiping AnalogRegisters takes either a str or RegisterName, got {type(name).__qualname__}"
+                )
+
+        if keys == []:
+            raise KeyError(
+                f"No RegisterName with matching name ({name.__repr__()}) to wipe"
+            )
+
+        for k in keys:
+            del self[k]
+
+    @property
+    def names(self):
+        return set(map(lambda k: k.name, self.keys()))
+
+    def contains_name(self, name):
+        return name in self.names
+
+
+########################################################################################
 
 
 class AnalogVirtualMachine:
@@ -78,7 +174,7 @@ class AnalogVirtualMachine:
     ):
         self.stack = AnalogStack()
         self.store = {}
-        self.registers = {}
+        self.registers = AnalogRegisters()
         self.machine_time = 0.0
 
         self.history = {}
