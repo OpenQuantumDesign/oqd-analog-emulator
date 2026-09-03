@@ -319,7 +319,7 @@ class StackStoreMixin:
             raise ValueError
 
 
-class QutipBasicMixin:
+class QutipMixin:
     def _new_register(self, name, state, vm):
         return QuantumRegister(
             name=name,
@@ -442,9 +442,19 @@ class QutipBasicMixin:
 
         vm.stack.push(AnalogVMNULL)
 
-
-class QutipIncoherentEnsembleMixin:
     def run_INIT(self, vm):
+        if self.options.singleshot_init:
+            self._run_singleshot_INIT(vm)
+        else:
+            self._run_ensemble_INIT(vm)
+
+    def run_MEASURE(self, vm):
+        if self.options.ignore_measurements:
+            self._run_noop_MEASURE(vm)
+        else:
+            self._run_singleshot_MEASURE(vm)
+
+    def _run_ensemble_INIT(self, vm):
         targets = self.get_args(1, vm)[0]
 
         targets = targets if isinstance(targets, list) else [targets]
@@ -491,12 +501,10 @@ class QutipIncoherentEnsembleMixin:
 
         vm.stack.push(AnalogVMNULL)
 
-    def run_MEASURE(self, vm):
-        warnings.warn("In QutipIncoherentEnsembleMixin, measurements are ignored")
+    def _run_noop_MEASURE(self, vm):
+        warnings.warn("Measurements are being ignored by the method table")
         vm.stack.push(AnalogVMNULL)
 
-
-class QutipIncoherentSingleShotMixin:
     def _projective_measure_single(self, reg, target, vm):
         remainder = [i for i in reg.name if i != target]
 
@@ -525,7 +533,7 @@ class QutipIncoherentSingleShotMixin:
 
         return outcome, target_state, remainder_reg
 
-    def run_MEASURE(self, vm):
+    def _run_singleshot_MEASURE(self, vm):
         targets = self.get_args(1, vm)[0]
 
         targets = targets if isinstance(targets, list) else [targets]
@@ -540,7 +548,7 @@ class QutipIncoherentSingleShotMixin:
 
             reg = vm.registers[target]
 
-            if reg.state == []:
+            if reg.state is None:
                 raise ValueError("Attempted to measure uninitialized qubit")
 
             # Calculate measured subsystem and remaining subsystem
@@ -578,7 +586,7 @@ class QutipIncoherentSingleShotMixin:
             [ListTerminators.LISTSTART, *reordered_outcomes, ListTerminators.LISTEND]
         )
 
-    def run_INIT(self, vm):
+    def _run_singleshot_INIT(self, vm):
         targets = self.get_args(1, vm)[0]
 
         targets = targets if isinstance(targets, list) else [targets]
@@ -591,7 +599,7 @@ class QutipIncoherentSingleShotMixin:
 
             reg = vm.registers[target]
 
-            if reg.state == []:
+            if reg.state is None:
                 vm.registers[target] = self._new_register(
                     name=vm.registers[target].name,
                     state=qt.basis(
