@@ -398,6 +398,11 @@ class QutipMixin:
     def run_EVOLVE(self, vm):
         args = self.get_args(3, vm)
         targets = args[0]
+        targets = targets if isinstance(targets, list) else [targets]
+
+        for name, _ in targets:
+            if vm.registers[name].state is None:
+                raise ValueError("Attempted to evolve uninitialized qubit")
 
         duration = args[1]
         hamiltonian = args[2]
@@ -465,7 +470,7 @@ class QutipMixin:
 
             current_state = vm.registers[target].state
 
-            if current_state == []:
+            if current_state is None:
                 vm.registers[target] = self._new_register(
                     name=vm.registers[target].name,
                     state=qt.basis(
