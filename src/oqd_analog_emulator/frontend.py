@@ -63,21 +63,30 @@ class AnalogREPR:
         return cfg
 
     def _run_block(self, block, previous):
+        success = False
         try:
             new_program = previous + "\n" + block
             # * Workaround invalild type checking by rerunning type check combining executed code and new code
             self.compile(new_program, type_check=True)
 
             cfg = self.compile(block, type_check=False)
-            res = self.interp.run(cfg=cfg)
 
-            print(f": {res}")
-
-            return new_program, True
         except Exception as e:
             print(f"{e.__class__.__name__}: {e}")
 
-            return previous, False
+            new_program = previous
+            cfg = None
+
+        try:
+            res = self.interp.run(cfg=cfg) if cfg else ""
+
+            success = True
+
+            print(f": {res}")
+        except Exception as e:
+            print(f"{e.__class__.__name__}: {e}")
+
+        return new_program, success
 
     def run(self, program: str = ""):
         start_string = f"""
