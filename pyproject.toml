@@ -76,4 +76,4 @@ Issues     = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
 
 
 [project.scripts]
-qutip_repr = "oqd_analog_emulator.qutip:app"
+analog_repr = "oqd_analog_emulator.frontend:app"
