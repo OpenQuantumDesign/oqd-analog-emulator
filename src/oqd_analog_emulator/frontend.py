@@ -82,7 +82,7 @@ class AnalogREPR:
 
             success = True
 
-            print(f": {res}")
+            print(f" : {res}")
         except Exception as e:
             print(f"{e.__class__.__name__}: {e}")
 
@@ -106,7 +106,7 @@ class AnalogREPR:
         previous = ""
         if program:
             for n, line in enumerate(program.splitlines()):
-                print(f"{ANSIGREEN}{'>>' if n == 0 else '>'}{ANSIRESET} {line}")
+                print(f"{ANSIGREEN}{'>>' if n == 0 else ' >'}{ANSIRESET} {line}")
 
             previous, success = self._run_block(program, previous)
 
@@ -120,7 +120,7 @@ class AnalogREPR:
                 if lines[-1] in ["", "exit", "exit()", "clear", "clear()"]:
                     break
 
-                lines.append(input(f"{ansi_color}>{ANSIRESET} "))
+                lines.append(input(f" {ansi_color}>{ANSIRESET} "))
 
             match lines[-1].strip():
                 case "exit" | "exit()":
