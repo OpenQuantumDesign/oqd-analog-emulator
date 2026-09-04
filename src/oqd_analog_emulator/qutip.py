@@ -14,6 +14,7 @@
 
 
 import pathlib
+import readline as readline
 
 import typer
 from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
@@ -152,7 +153,7 @@ class QutipREPR:
 
         return cfg
 
-    def run(self, program: str | None = None):
+    def run(self, program: str = ""):
         start_string = f"""
 {"=" * 80}
 {"Welcome to the Qutip Interpreter for Analog langugage of OQD Core!":^80}
@@ -162,10 +163,14 @@ class QutipREPR:
 
         print(start_string)
 
+        ANSIGREEN = "\001\033[1;32m\002"
+        ANSIRED = "\001\033[1;31m\002"
+        ANSIRESET = "\001\033[0m\002"
+
         success = True
         if program:
             for n, line in enumerate(program.splitlines()):
-                print(f"\033[1;32m{'>>' if n == 0 else '>'}\033[0m {line}")
+                print(f"{ANSIGREEN}{'>>' if n == 0 else '>'}{ANSIRESET} {line}")
 
             cfg = self.compile(program, type_check=True)
 
@@ -178,28 +183,31 @@ class QutipREPR:
                 print(e)
 
         while True:
-            ansi_color = "\033[1;32m" if success else "\033[1;31m"
+            ansi_color = ANSIGREEN if success else ANSIRED
 
             lines = []
-            firstline = input(f"{ansi_color}>>\033[0m ")
+            firstline = input(f"{ansi_color}>>{ANSIRESET} ")
             lines.append(firstline)
             while True:
                 if lines[-1] in ["", "exit"]:
                     break
 
                 else:
-                    lines.append(input(f"{ansi_color}>\033[0m "))
+                    lines.append(input(f"{ansi_color}>{ANSIRESET} "))
 
-            program = "\n".join(lines)
+            block = "\n".join(lines)
 
-            if program.strip() == "exit":
+            if block.strip() == "exit":
                 break
 
-            cfg = self.compile(program, type_check=False)
+            new_program = program + "\n" + block
 
             try:
+                self.compile(new_program, type_check=True)
+                cfg = self.compile(block, type_check=False)
                 res = self.interp.run(cfg=cfg)
                 success = True
+                program = new_program
 
                 print(f": {res}")
             except Exception as e:
@@ -215,6 +223,7 @@ app = typer.Typer()
 @app.command()
 def run_qutip_repr(
     program: str | None = None,
+    program_file: pathlib.Path | None = None,
     options: str | None = QutipMethodTableOptions().model_dump_json(indent=2),
     options_file: pathlib.Path | None = None,
 ):
@@ -223,4 +232,4 @@ def run_qutip_repr(
 
     qutip_repr = QutipREPR(options=options)
 
-    qutip_repr.run(program)
+    qutip_repr.run(program if program else "")
