@@ -62,6 +62,23 @@ class AnalogREPR:
 
         return cfg
 
+    def _run_block(self, block, previous):
+        try:
+            new_program = previous + "\n" + block
+            # * Workaround invalild type checking by rerunning type check combining executed code and new code
+            self.compile(new_program, type_check=True)
+
+            cfg = self.compile(block, type_check=False)
+            res = self.interp.run(cfg=cfg)
+
+            print(f": {res}")
+
+            return new_program, True
+        except Exception as e:
+            print(f"{e.__class__.__name__}: {e}")
+
+            return previous, False
+
     def run(self, program: str = ""):
         start_string = f"""
 {"=" * 80}
@@ -77,19 +94,12 @@ class AnalogREPR:
         ANSIRESET = "\001\033[0m\002"
 
         success = True
+        previous = ""
         if program:
             for n, line in enumerate(program.splitlines()):
                 print(f"{ANSIGREEN}{'>>' if n == 0 else '>'}{ANSIRESET} {line}")
 
-            cfg = self.compile(program, type_check=True)
-
-            try:
-                res = self.interp.run(cfg=cfg)
-                success = True
-                print(f": {res}")
-            except Exception as e:
-                success = False
-                print(e)
+            previous, success = self._run_block(program, previous)
 
         while True:
             ansi_color = ANSIGREEN if success else ANSIRED
@@ -101,28 +111,14 @@ class AnalogREPR:
                 if lines[-1] in ["", "exit", "exit()"]:
                     break
 
-                else:
-                    lines.append(input(f"{ansi_color}>{ANSIRESET} "))
+                lines.append(input(f"{ansi_color}>{ANSIRESET} "))
 
             if lines[-1].strip() in ["exit", "exit()"]:
                 break
 
             block = "\n".join(lines)
 
-            try:
-                new_program = program + "\n" + block
-                # * Workaround invalild type checking by rerunning type check combining executed code and new code
-                self.compile(new_program, type_check=True)
-
-                cfg = self.compile(block, type_check=False)
-                res = self.interp.run(cfg=cfg)
-                success = True
-                program = new_program
-
-                print(f": {res}")
-            except Exception as e:
-                success = False
-                print(f"{e.__class__.__name__}: {e}")
+            previous, success = self._run_block(block, previous)
 
 
 ########################################################################################
@@ -155,7 +151,8 @@ def run_analog_repr(
     Runs an Analog Interpreter REPR environment for the Analog language of OQD's stack.
     """
 
-    program = program.replace("\\n", "\n")
+    if program:
+        program = program.replace("\\n", "\n")
 
     analog_repr = AnalogREPR(method_table=method_table, options=options)
 
