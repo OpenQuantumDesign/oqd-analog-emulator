@@ -117,7 +117,7 @@ class AnalogREPR:
             firstline = input(f"{ansi_color}>>{ANSIRESET} ")
             lines.append(firstline)
             while True:
-                if lines[-1] in ["", "exit", "exit()", "clear", "clear()"]:
+                if lines[-1] in ["", "exit", "exit()", "reset", "reset()"]:
                     break
 
                 lines.append(input(f" {ansi_color}>{ANSIRESET} "))
@@ -125,7 +125,7 @@ class AnalogREPR:
             match lines[-1].strip():
                 case "exit" | "exit()":
                     break
-                case "clear" | "clear()":
+                case "reset" | "reset()":
                     self.interp.clear()
                     previous = ""
                     continue
