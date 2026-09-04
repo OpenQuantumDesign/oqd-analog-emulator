@@ -73,3 +73,7 @@ dev = ["jupyter>=1.1.1", "pre-commit>=4.1.0", "ruff>=0.9.7"]
 Homepage   = "https://github.com/OpenQuantumDesign/oqd-analog-emulator"
 Repository = "https://github.com/OpenQuantumDesign/oqd-analog-emulator.git"
 Issues     = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
+
+
+[project.scripts]
+qutip_repr = "oqd_analog_emulator.qutip:app"

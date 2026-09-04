@@ -13,12 +13,23 @@
 # limitations under the License.
 
 
+import pathlib
+
+import typer
 from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
 from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
 from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
 from oqd_core.backend.base import BackendBase
 from oqd_core.backend.program import AnalogProgram
+from oqd_core.compiler.analog.cfg_passes.walk import (
+    canonicalize_math_cfg,
+    canonicalize_operators_cfg,
+)
 from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
+from oqd_core.compiler.analog.verify.passes import (
+    verify_hamiltonian_target_dim,
+    verify_register_access_dim,
+)
 from oqd_core.frontend.analog import parse_analog
 
 from oqd_analog_emulator.interpreter import AnalogInterpreter
@@ -112,3 +123,104 @@ class QutipBackend(BackendBase):
         output = interpreter.run(cfg=cfg)
 
         return program, interpreter, output
+
+
+########################################################################################
+
+
+class QutipREPR:
+    def __init__(self, *, options, **kwargs):
+        self.interp = AnalogInterpreter(
+            method_table=QutipMethodTable(options=options, **kwargs)
+        )
+
+    def compile(self, program: str, *, type_check=True):
+        circuit = parse_analog(program)
+        cfg = AnalogCFGBuilder().run(circuit)
+
+        canonicalize_operators_cfg(cfg)
+        canonicalize_math_cfg(cfg)
+
+        if type_check:
+            checker = AnalogTypeChecker(cfg)
+
+            symbol_analysis = AnalogSymbolTableBuilder(cfg, checker.dataflow_result)
+            symbol_table = symbol_analysis.symbol_table
+
+            verify_register_access_dim(cfg, symbol_table)
+            verify_hamiltonian_target_dim(cfg, symbol_table)
+
+        return cfg
+
+    def run(self, program: str | None = None):
+        start_string = f"""
+{"=" * 80}
+{"Welcome to the Qutip Interpreter for Analog langugage of OQD Core!":^80}
+{"=" * 80}
+        
+        """.strip()
+
+        print(start_string)
+
+        success = True
+        if program:
+            for n, line in enumerate(program.splitlines()):
+                print(f"\033[1;32m{'>>' if n == 0 else '>'}\033[0m {line}")
+
+            cfg = self.compile(program, type_check=True)
+
+            try:
+                res = self.interp.run(cfg=cfg)
+                success = True
+                print(f": {res}")
+            except Exception as e:
+                success = False
+                print(e)
+
+        while True:
+            ansi_color = "\033[1;32m" if success else "\033[1;31m"
+
+            lines = []
+            firstline = input(f"{ansi_color}>>\033[0m ")
+            lines.append(firstline)
+            while True:
+                if lines[-1] in ["", "exit"]:
+                    break
+
+                else:
+                    lines.append(input(f"{ansi_color}>\033[0m "))
+
+            program = "\n".join(lines)
+
+            if program.strip() == "exit":
+                break
+
+            cfg = self.compile(program, type_check=False)
+
+            try:
+                res = self.interp.run(cfg=cfg)
+                success = True
+
+                print(f": {res}")
+            except Exception as e:
+                success = False
+                print(f"{e.__class__.__name__}: {e}")
+
+
+########################################################################################
+
+app = typer.Typer()
+
+
+@app.command()
+def run_qutip_repr(
+    program: str | None = None,
+    options: str | None = QutipMethodTableOptions().model_dump_json(indent=2),
+    options_file: pathlib.Path | None = None,
+):
+
+    options = QutipMethodTableOptions.model_validate_json(options)
+
+    qutip_repr = QutipREPR(options=options)
+
+    qutip_repr.run(program)
