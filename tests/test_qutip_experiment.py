@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from oqd_analog_emulator.qutip_backend import QutipBackend
+from oqd_analog_emulator.qutip import QutipBackend
 
 
 def get_amplitude_arrays(state: list):
