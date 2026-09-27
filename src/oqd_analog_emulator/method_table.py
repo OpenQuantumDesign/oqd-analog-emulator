@@ -14,6 +14,8 @@
 
 ########################################################################################
 
+from __future__ import annotations
+
 import math
 import warnings
 from typing import Any, Generic, List, TypeVar
@@ -58,12 +60,21 @@ class QuantumRegister(BaseModel):
 
     def sort(self):
         sorted_name = sorted(self.name, key=lambda k: (k.name, k.index))
-        permute_order = [self.name.index(x) for x in sorted_name]
-        sorted_state = self.state.permute(permute_order)
+        self.permute(sorted_name)
 
-        self.name = sorted_name
-        self.state = sorted_state
+        return self
 
+    def permute(self, order: List[int] | List[QuantumRegister]):
+        match order:
+            case list() if all([isinstance(i, int) for i in order]):
+                pass
+            case list() if all([isinstance(i, RegisterName) for i in order]):
+                order = [self.name.index(i) for i in order]
+            case _:
+                raise ValueError("Unsupport order for permute in QuantumRegister")
+
+        self.name = [self.name[i] for i in order]
+        self.state = self.state.permute(order)
         return self
 
 
@@ -339,47 +350,6 @@ class QutipMixin:
         op1 = vm.stack.pop()
         vm.stack.push(qt.tensor(op1, op2))
 
-    def run_INIT(self, vm):
-        targets = self.get_args(1, vm)[0]
-
-        targets = targets if isinstance(targets, list) else [targets]
-
-        for name, target in targets:
-            vm.registers[name].state = qt.basis(
-                np.prod([n.dim for n in vm.registers[name].name]), 0
-            )
-            vm.registers[name].time_last_updated = vm.machine_time
-
-        vm.stack.push(AnalogVMNULL)
-
-    def run_MEASURE(self, vm):
-        # TODO: Fix measurements
-        # targets = self.get_args(1, vm)[0]
-        # if not isinstance(targets, list):
-        #     targets = [targets]
-
-        # qubits = []
-        # actual_qubits = []
-        # for target, name in targets:
-        #     qubits.append(target)
-        #     actual_qubits.append(name)
-        # targets = actual_qubits
-        # counts = {}
-        # for ind, target in enumerate(targets):
-        #     probs = np.power(np.abs(target.state.full()), 2).squeeze()
-        #     n_shots = self._n_shots
-        #     inds = np.random.choice(len(probs), size=n_shots, p=probs)
-        #     h_dims = target.dims
-        #     opts = len(targets) * [list(range(h_dims))]
-        #     bases = list(itertools.product(*opts))
-        #     shots = np.array([bases[ind] for ind in inds])
-        #     bitstrings = ["".join(map(str, shot)) for shot in shots]
-        #     counts[ind] = {
-        #         bitstring: bitstrings.count(bitstring) for bitstring in bitstrings
-        #     }
-
-        vm.stack.push(AnalogVMNULL)
-
         # Pads the hamiltonian with additional dimensions if required and reorders states
 
     def _pad_hamiltonian(self, hamiltonian, targets):
@@ -414,6 +384,12 @@ class QutipMixin:
         padded_qubits = [*set(all_qubits).difference(qubits), *qubits]
         permute_order = [all_qubits.index(x) for x in padded_qubits]
 
+        states = (
+            states
+            if all(list(map(lambda s: s.isket, states)))
+            else [qt.ket2dm(s) if s.isket else s for s in states]
+        )
+
         states = qt.tensor(*states)
         states = states.permute(permute_order)
 
@@ -422,6 +398,11 @@ class QutipMixin:
     def run_EVOLVE(self, vm):
         args = self.get_args(3, vm)
         targets = args[0]
+        targets = targets if isinstance(targets, list) else [targets]
+
+        for name, _ in targets:
+            if vm.registers[name].state is None:
+                raise ValueError("Attempted to evolve uninitialized qubit")
 
         duration = args[1]
         hamiltonian = args[2]
@@ -463,5 +444,196 @@ class QutipMixin:
 
         for reg in vm.registers.keys():
             vm.registers[reg].time = vm.machine_time
+
+        vm.stack.push(AnalogVMNULL)
+
+    def run_INIT(self, vm):
+        if self.options.singleshot_init:
+            self._run_singleshot_INIT(vm)
+        else:
+            self._run_ensemble_INIT(vm)
+
+    def run_MEASURE(self, vm):
+        if self.options.ignore_measurements:
+            self._run_noop_MEASURE(vm)
+        else:
+            self._run_singleshot_MEASURE(vm)
+
+    def _run_ensemble_INIT(self, vm):
+        targets = self.get_args(1, vm)[0]
+
+        targets = targets if isinstance(targets, list) else [targets]
+        targets = [name for name, target in targets]
+
+        while targets:
+            target = targets[0]
+
+            current_state = vm.registers[target].state
+
+            if current_state is None:
+                vm.registers[target] = self._new_register(
+                    name=vm.registers[target].name,
+                    state=qt.basis(
+                        np.prod([t.dim for t in vm.registers[target].name]), 0
+                    ),
+                    vm=vm,
+                )
+                continue
+
+            system = vm.registers[target].name
+            initialized_subsystem = [
+                i for i in range(len(system)) if system[i] in targets
+            ]
+            remaining_subsystem = [
+                i for i in range(len(system)) if system[i] not in targets
+            ]
+
+            for name in (system[i] for i in initialized_subsystem):
+                vm.registers[name] = self._new_register(
+                    name=[name], state=qt.basis(name.dim, 0), vm=vm
+                )
+
+            new_state = current_state.ptrace(remaining_subsystem)
+
+            for name in (system[i] for i in remaining_subsystem):
+                vm.registers[name] = self._new_register(
+                    name=[system[i] for i in remaining_subsystem],
+                    state=new_state,
+                    vm=vm,
+                ).sort()
+
+            targets = [t for t in targets if t not in system]
+
+        vm.stack.push(AnalogVMNULL)
+
+    def _run_noop_MEASURE(self, vm):
+        warnings.warn("Measurements are being ignored by the method table")
+        vm.stack.push(AnalogVMNULL)
+
+    def _projective_measure_single(self, reg, target, vm):
+        remainder = [i for i in reg.name if i != target]
+
+        reg = reg.permute([target] + remainder)
+
+        ops = [qt.basis(target.dim, i) for i in range(target.dim)]
+        ops = [qt.tensor(op.proj(), *[qt.qeye(i.dim) for i in remainder]) for op in ops]
+
+        outcome, new_state = qt.measurement.measure(reg.state, ops)
+
+        target_state = qt.basis(target.dim, outcome)
+
+        if remainder == []:
+            return outcome, target_state, None
+
+        remainder_state = (
+            qt.tensor(
+                target_state.dag(),
+                *[qt.qeye(i.dim) for i in remainder],
+            )
+            * new_state
+        )
+        remainder_state.dims = [remainder_state.dims[0][1:], remainder_state.dims[1]]
+
+        remainder_reg = self._new_register(remainder, remainder_state, vm)
+
+        return outcome, target_state, remainder_reg
+
+    def _run_singleshot_MEASURE(self, vm):
+        targets = self.get_args(1, vm)[0]
+
+        targets = targets if isinstance(targets, list) else [targets]
+        targets = [name for name, target in targets]
+
+        _targets = targets
+
+        outcomes = []
+        outcome_names = []
+        while _targets:
+            target = _targets[0]
+
+            reg = vm.registers[target]
+
+            if reg.state is None:
+                raise ValueError("Attempted to measure uninitialized qubit")
+
+            # Calculate measured subsystem and remaining subsystem
+            system = vm.registers[target].name
+            measured_subsystem = [i for i in system if i in _targets]
+            remaining_subsystem = [i for i in system if i not in _targets]
+
+            # Calculate new permutation of current state
+            reg = reg.permute(measured_subsystem + remaining_subsystem)
+
+            while measured_subsystem:
+                name = measured_subsystem.pop(0)
+
+                outcome, target_state, reg = self._projective_measure_single(
+                    reg, name, vm
+                )
+
+                vm.registers[name] = self._new_register(
+                    name=[name], state=target_state, vm=vm
+                )
+
+                outcomes.append(outcome)
+                outcome_names.append(name)
+
+            for name in remaining_subsystem:
+                vm.registers[name] = reg.sort()
+
+            _targets = [t for t in _targets if t not in system]
+
+        reordered_outcomes = [
+            outcomes[i] for i in [outcome_names.index(j) for j in targets]
+        ]
+
+        vm.stack.push(
+            [ListTerminators.LISTSTART, *reordered_outcomes, ListTerminators.LISTEND]
+        )
+
+    def _run_singleshot_INIT(self, vm):
+        targets = self.get_args(1, vm)[0]
+
+        targets = targets if isinstance(targets, list) else [targets]
+        targets = [name for name, target in targets]
+
+        _targets = targets
+
+        while _targets:
+            target = _targets[0]
+
+            reg = vm.registers[target]
+
+            if reg.state is None:
+                vm.registers[target] = self._new_register(
+                    name=vm.registers[target].name,
+                    state=qt.basis(
+                        np.prod([t.dim for t in vm.registers[target].name]), 0
+                    ),
+                    vm=vm,
+                )
+                continue
+
+            # Calculate measured subsystem and remaining subsystem
+            system = vm.registers[target].name
+            measured_subsystem = [i for i in system if i in _targets]
+            remaining_subsystem = [i for i in system if i not in _targets]
+
+            # Calculate new permutation of current state
+            reg = reg.permute(measured_subsystem + remaining_subsystem)
+
+            while measured_subsystem:
+                name = measured_subsystem.pop(0)
+
+                _, _, reg = self._projective_measure_single(reg, name, vm)
+
+                vm.registers[name] = self._new_register(
+                    name=[name], state=qt.basis(name.dim, 0), vm=vm
+                )
+
+            for name in remaining_subsystem:
+                vm.registers[name] = reg.sort()
+
+            _targets = [t for t in _targets if t not in system]
 
         vm.stack.push(AnalogVMNULL)

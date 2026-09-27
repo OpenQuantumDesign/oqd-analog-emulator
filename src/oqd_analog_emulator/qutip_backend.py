@@ -44,6 +44,8 @@ __all__ = [
 class QutipMethodTableOptions(MethodTableOptionsBase):
     fock_cutoff: int = 4
     dt: float = 1e-2
+    ignore_measurements: bool = False
+    singleshot_init: bool = True
 
 
 class QutipMethodTable(
