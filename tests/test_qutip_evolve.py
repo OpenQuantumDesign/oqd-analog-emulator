@@ -18,7 +18,7 @@ import qutip
 from oqd_core.compiler.analog.error import AnalogCompilerError
 
 from oqd_analog_emulator.method_table import QuantumRegister, RegisterName
-from oqd_analog_emulator.qutip_backend import QutipBackend
+from oqd_analog_emulator.qutip import QutipBackend
 
 ########################################################################################
 
