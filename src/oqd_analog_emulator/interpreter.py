@@ -14,10 +14,10 @@
 
 
 from collections.abc import MutableMapping, MutableSequence
-from typing import Any
+from typing import Any, List
 
-from oqd_core.analysis.utils import ControlFlowGraph
-from oqd_core.interface.analog import Break, Continue
+import numpy as np
+from oqd_compiler_infrastructure import CFG
 
 from oqd_analog_emulator.instructions import (
     AnalogInstructions,
@@ -86,12 +86,14 @@ class AnalogStack(MutableSequence[Any]):
             out.append(curr)
             if curr is ListTerminators.LISTEND:
                 break
+
         return out
 
 
 class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
     def __init__(self):
         self._registers = {}
+        self._current = 0
 
     def __repr__(self):
         return self._registers.__repr__()
@@ -134,24 +136,21 @@ class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
     def __iter__(self):
         return self._registers.__iter__()
 
-    def wipe(self, name: str | RegisterName):
-        match name:
-            case str():
-                keys = list(filter(lambda k: k.name == name, self.keys()))
-            case RegisterName():
-                keys = [name] if name in self else []
-            case _:
-                raise KeyError(
-                    f"Wiping AnalogRegisters takes either a str or RegisterName, got {type(name).__qualname__}"
-                )
-
-        if keys == []:
-            raise KeyError(
-                f"No RegisterName with matching name ({name.__repr__()}) to wipe"
+    def create(self, size, dim, t):
+        names = []
+        for _ in range(size):
+            name = RegisterName(name="r", index=self._current, dim=dim)
+            self[name] = QuantumRegister(
+                name=[name], time=t, time_last_updated=t, state=None
             )
+            names.append(name)
+            self._current += 1
 
-        for k in keys:
-            del self[k]
+        return names
+
+    def wipe(self, names: List[RegisterName]):
+        for name in names:
+            del self[name]
 
     @property
     def names(self):
@@ -173,7 +172,31 @@ class AnalogVirtualMachine:
         **kwargs,
     ):
         self.stack = AnalogStack()
-        self.store = {}
+        self.store = {
+            "$abs": np.abs,
+            "$real": np.real,
+            "$imag": np.imag,
+            "$conj": np.conj,
+            "$sin": np.sin,
+            "$cos": np.cos,
+            "$tan": np.tan,
+            "$exp": np.exp,
+            "$log": np.log,
+            "$sinh": np.sinh,
+            "$cosh": np.cosh,
+            "$tanh": np.tanh,
+            "$asin": np.asin,
+            "$acos": np.acos,
+            "$atan": np.atan,
+            "$atan2": np.atan2,
+            "$asinh": np.asinh,
+            "$acosh": np.acosh,
+            "$atanh": np.atanh,
+            "$heaviside": lambda x: np.heaviside(x, 1),
+            "$round": lambda x: np.round(x).astype(int),
+            "#t": lambda t, s: t,
+            "#s": lambda t, s: s,
+        }
         self.registers = AnalogRegisters()
         self.machine_time = 0.0
 
@@ -201,7 +224,7 @@ class AnalogVirtualMachine:
     def clear(self):
         self.stack = AnalogStack()
         self.store = {}
-        self.registers = {}
+        self.registers = AnalogRegisters()
         self.history = {}
 
 
@@ -216,43 +239,28 @@ class AnalogInterpreter:
         self.vm = AnalogVirtualMachine(
             method_table=method_table, options=options, **kwargs
         )
-        self.codegen = AnalogInstructionsCodegen(
-            fock_cutoff=self.vm.method_table.options.fock_cutoff
-        )
+        self.codegen = AnalogInstructionsCodegen()
 
     def evaluate(self, stmt):
         instructions = self.codegen(stmt)
         self.vm.run(instructions)
 
-    def run(self, cfg: ControlFlowGraph):
+    def run(self, cfg: CFG):
         current_block = cfg.blocks[0]
 
-        while True:
-            inverse_edge_labels = {v: k for k, v in current_block.edge_labels.items()}
+        while current_block:
+            for stmt in current_block.stmts:
+                self.evaluate(stmt)
 
-            match current_block.kind:
-                case "stop":
-                    break
-                case "start":
-                    current_block = current_block.succs[0]
-                case "stmt" if isinstance(current_block.stmt, (Break, Continue)):
-                    current_block = cfg.blocks[
-                        inverse_edge_labels.get(
-                            current_block.stmt.__class__.__name__.lower()
-                        )
-                    ]
-                case "stmt":
-                    self.evaluate(current_block.stmt)
-                    current_block = current_block.succs[0]
-                case "branch":
-                    self.evaluate(current_block.stmt)
-                    cond = self.vm.stack.pop()
+            if current_block.succs == set():
+                break
 
-                    current_block = cfg.blocks[
-                        inverse_edge_labels.get(str(cond).lower())
-                    ]
-                case _:
-                    raise ValueError("Unknown kind of block in CFG")
+            if current_block.edge_labels:
+                cond = str(self.vm.stack.pop()).lower()
+                current_block = cfg[current_block.edge_labels[cond]]
+                continue
+
+            current_block = cfg[next(iter(current_block.succs))]
 
         stack_top = self.vm.stack.pop()
         if stack_top is None:

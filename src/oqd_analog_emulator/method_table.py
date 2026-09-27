@@ -16,18 +16,16 @@
 
 from __future__ import annotations
 
-import math
+import operator
 import warnings
 from typing import Any, Generic, List, TypeVar
 
 import numpy as np
 import qutip as qt
-from oqd_compiler_infrastructure import Post
-from oqd_core.interface.analog.expr import MathExpr, OperatorExpr
 from pydantic import BaseModel, ConfigDict
+from scipy.sparse import csr_matrix
 
-from oqd_analog_emulator.instructions import Alias, AnalogVMNULL, ListTerminators
-from oqd_analog_emulator.passes import QutipQobjEvoGenerator
+from oqd_analog_emulator.instructions import AnalogVMNULL, ListTerminators
 
 ########################################################################################
 
@@ -88,6 +86,35 @@ def recursive_filter(lst, cond):
             filter(cond, lst),
         )
     )
+
+
+def _build_callable(func, *args):
+    match args:
+        case (int() | float() | complex() | qt.Qobj(),) as operand:
+            return func(args[0])
+
+        case (operand,) if callable(operand):
+            return lambda t, s: func(args[0](t, s))
+
+        case (
+            int() | float() | complex() | qt.Qobj() as left,
+            int() | float() | complex() | qt.Qobj() as right,
+        ):
+            return func(left, right)
+
+        case (left, int() | float() | complex() | qt.Qobj() as right) if callable(left):
+            return lambda t, s: func(left(t, s), right)
+
+        case (int() | float() | complex() | qt.Qobj() as left, right) if callable(
+            right
+        ):
+            return lambda t, s: func(left, right(t, s))
+
+        case (left, right) if callable(left) and callable(right):
+            return lambda t, s: func(left(t, s), right(t, s))
+
+        case _:
+            raise ValueError()
 
 
 ########################################################################################
@@ -209,45 +236,76 @@ class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
 
 
 class ArithmeticMixin:
-    def run_FUNC(self, func, vm):
-        output = None
-        operation = getattr(math, func, None)
-        if operation is None:
-            operation = getattr(np, func, None)
-        if operation is None:
-            raise ValueError("Unknown math function")
+    def run_NEG(self, vm):
+        arg = self.get_args(num=1, vm=vm)[0]
 
-        match func:
-            case "abs":
-                output = abs(vm.stack.pop())
-            case "heaviside":
-                output = np.heaviside(vm.stack.pop(), 0)
-            case "atan2":
-                x = vm.stack.pop()
-                y = vm.stack.pop()
-                output = operation(y, x)
-            case _:
-                output = operation(vm.stack.pop())
-        vm.stack.push(output)
+        vm.stack.push(_build_callable(operator.neg, arg))
+
+    def run_POS(self, vm):
+        arg = self.get_args(num=1, vm=vm)[0]
+
+        vm.stack.push(_build_callable(operator.pos, arg))
 
     def run_ADD(self, vm):
-        vm.stack.push(vm.stack.pop() + vm.stack.pop())
+        args = left, right = self.get_args(num=2, vm=vm)
+
+        vm.stack.push(_build_callable(operator.add, *args))
 
     def run_SUB(self, vm):
-        vm.stack.push(-vm.stack.pop() + vm.stack.pop())
+        args = left, right = self.get_args(num=2, vm=vm)
+
+        vm.stack.push(_build_callable(operator.sub, *args))
 
     def run_MUL(self, vm):
-        vm.stack.push(vm.stack.pop() * vm.stack.pop())
+        args = left, right = self.get_args(num=2, vm=vm)
+
+        vm.stack.push(_build_callable(operator.mul, *args))
 
     def run_DIV(self, vm):
-        denom = vm.stack.pop()
-        num = vm.stack.pop()
-        vm.stack.push(num / denom)
+        args = left, right = self.get_args(num=2, vm=vm)
+
+        vm.stack.push(_build_callable(operator.truediv, *args))
 
     def run_POW(self, vm):
-        exponent = vm.stack.pop()
-        base = vm.stack.pop()
-        vm.stack.push(base**exponent)
+        args = left, right = self.get_args(num=2, vm=vm)
+
+        vm.stack.push(_build_callable(operator.pow, *args))
+
+    def run_MFUNC(self, vm):
+        name = self.get_args(num=1, vm=vm)[0]
+
+        match name:
+            case "$atan2":
+                args = self.get_args(num=2, vm=vm)
+            case _:
+                args = self.get_args(num=1, vm=vm)
+
+        vm.stack.push(_build_callable(vm.store[name], *args))
+
+
+class FunctionMixin:
+    def run_LEN(self, vm):
+        arg = self.get_args(num=1, vm=vm)[0]
+
+        vm.stack.push(len(arg))
+
+    def run_FLATTEN(self, vm):
+        arg = self.get_args(num=1, vm=vm)[0]
+
+        vm.stack.push(
+            [ListTerminators.LISTSTART]
+            + [e for sub in arg for e in sub if not isinstance(e, ListTerminators)]
+            + [ListTerminators.LISTEND]
+        )
+
+    def run_RANGE(self, vm):
+        args = self.get_args(num=3, vm=vm)
+
+        vm.stack.push(
+            [ListTerminators.LISTSTART]
+            + [i for i in range(*args)]
+            + [ListTerminators.LISTEND]
+        )
 
 
 class BoolMixin:
@@ -260,6 +318,9 @@ class BoolMixin:
     def run_OR(self, vm):
         vm.stack.push(vm.stack.pop() or vm.stack.pop())
 
+    def run_XOR(self, vm):
+        vm.stack.push(vm.stack.pop() ^ vm.stack.pop())
+
     def run_EQ(self, vm):
         vm.stack.push(vm.stack.pop() == vm.stack.pop())
 
@@ -267,50 +328,65 @@ class BoolMixin:
         vm.stack.push(vm.stack.pop() != vm.stack.pop())
 
     def run_LT(self, vm):
-        rhs = vm.stack.pop()
-        lhs = vm.stack.pop()
-        vm.stack.push(lhs < rhs)
+        vm.stack.push(vm.stack.pop() < vm.stack.pop())
 
-    def run_LTEQ(self, vm):
-        rhs = vm.stack.pop()
-        lhs = vm.stack.pop()
-        vm.stack.push(lhs <= rhs)
+    def run_LEQ(self, vm):
+        vm.stack.push(vm.stack.pop() <= vm.stack.pop())
 
     def run_GT(self, vm):
-        rhs = vm.stack.pop()
-        lhs = vm.stack.pop()
-        vm.stack.push(lhs > rhs)
+        vm.stack.push(vm.stack.pop() > vm.stack.pop())
 
-    def run_GTEQ(self, vm):
-        rhs = vm.stack.pop()
-        lhs = vm.stack.pop()
-        vm.stack.push(lhs >= rhs)
+    def run_GEQ(self, vm):
+        vm.stack.push(vm.stack.pop() >= vm.stack.pop())
 
 
 class StackStoreMixin:
-    def run_GLOBAL(self, name, vm):
+    def run_GLOBAL(self, vm):
+        name = vm.stack.pop()
         if name not in vm.store:
             vm.store[name] = None
 
     def run_CONST(self, value, vm):
         vm.stack.push(value)
 
-    def run_STORE(self, name, vm):
+    def run_STORE(self, vm):
+        name = vm.stack.pop()
+
         vm.store[name] = vm.stack.pop()
 
-    def run_LOAD(self, name, vm):
-        while isinstance(vm.store.get(name, None), Alias):
-            name = vm.store[name].target
+    def run_LOAD(self, vm):
+        name = vm.stack.pop()
+        while True:
+            value = vm.store.get(name, None)
 
-        if name in vm.store:
-            item = vm.store[name]
-            vm.stack.push(item)
-        else:
-            raise ValueError
+            if not isinstance(value, str) or not value.startswith("&"):
+                break
 
-    def run_EXTRACT(self, name, index, vm):
-        while isinstance(vm.store.get(name, None), Alias):
-            name = vm.store[name].target
+            name = value.removeprefix("&")
+
+        vm.stack.push(vm.store[name])
+
+    def run_LOADV(self, vm):
+        name = vm.stack.pop()
+
+        value = vm.store.get(name, None)
+
+        if value is None:
+            raise ValueError("")
+
+        vm.stack.push(value)
+
+    def run_EXTRACT(self, vm):
+        name = vm.stack.pop()
+        while True:
+            value = vm.store.get(name, None)
+
+            if not isinstance(value, str) or not value.startswith("&"):
+                break
+
+            name = value.removeprefix("&")
+
+        index = vm.stack.pop()
 
         if name in vm.store and index < len(vm.store[name]) - 2:
             item = vm.store[name][index + 1]
@@ -328,108 +404,158 @@ class QutipMixin:
             state=state,
         )
 
-    def run_QREG(self, name, size, dim, vm):
-        if vm.registers.contains_name(name):
-            vm.registers.wipe(name)
+    def run_PI(self, vm):
+        level1, level2, dim = self.get_args(num=3, vm=vm)
 
-        store_value = [ListTerminators.LISTSTART]
-        for n in range(size):
-            qubit = RegisterName(name=name, index=n, dim=dim)
-            reg = self._new_register(name=[qubit], state=None, vm=vm)
-            vm.registers[qubit] = reg
-            store_value.append(qubit)
-        store_value.append(ListTerminators.LISTEND)
+        data = np.ones(2, dtype=np.complex64)
+        col = np.array([level1, level2])
+        row = np.array([level1, level2])
 
-        vm.store[name] = store_value
+        op = csr_matrix((data, (row, col)), shape=(dim, dim))
+        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
 
-    def run_MREG(self, name, size, vm):
-        self.run_QREG(name, size, self.options.fock_cutoff, vm)
+    def run_PX(self, vm):
+        level1, level2, dim = self.get_args(num=3, vm=vm)
+
+        data = np.ones(2, dtype=np.complex64)
+        col = np.array([level1, level2])
+        row = np.array([level2, level1])
+
+        op = csr_matrix((data, (row, col)), shape=(dim, dim))
+        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+
+    def run_PY(self, vm):
+        level1, level2, dim = self.get_args(num=3, vm=vm)
+
+        data = np.array([1j, -1j], dtype=np.complex64)
+        col = np.array([level1, level2])
+        row = np.array([level2, level1])
+
+        op = csr_matrix((data, (row, col)), shape=(dim, dim))
+        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+
+    def run_PZ(self, vm):
+        level1, level2, dim = self.get_args(num=3, vm=vm)
+
+        data = np.array([1, -1], dtype=np.complex64)
+        col = np.array([level1, level2])
+        row = np.array([level1, level2])
+
+        op = csr_matrix((data, (row, col)), shape=(dim, dim))
+        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+
+    def run_MI(self, vm):
+        dim = self.options.fock_cutoff
+
+        vm.stack.push(qt.qeye(dim, dtype=qt.data.CSR))
+
+    def run_MA(self, vm):
+        dim = self.options.fock_cutoff
+
+        vm.stack.push(qt.destroy(dim, dtype=qt.data.CSR))
+
+    def run_MC(self, vm):
+        dim = self.options.fock_cutoff
+
+        vm.stack.push(qt.create(dim, dtype=qt.data.CSR))
 
     def run_KRON(self, vm):
-        op2 = vm.stack.pop()
-        op1 = vm.stack.pop()
-        vm.stack.push(qt.tensor(op1, op2))
+        args = self.get_args(2, vm)
+        vm.stack.push(_build_callable(qt.tensor, *args))
+
+    def run_QREG(self, vm):
+        size, dim = self.get_args(num=2, vm=vm)
+        names = vm.registers.create(size, dim, vm.machine_time)
+        vm.stack.push([ListTerminators.LISTSTART, *names, ListTerminators.LISTEND])
+
+    def run_MREG(self, vm):
+        size = self.get_args(num=1, vm=vm)[0]
+        names = vm.registers.create(size, self.options.fock_cutoff, vm.machine_time)
+        vm.stack.push([ListTerminators.LISTSTART, *names, ListTerminators.LISTEND])
 
         # Pads the hamiltonian with additional dimensions if required and reorders states
 
-    def _pad_hamiltonian(self, hamiltonian, targets):
-        qubits, targets = (
-            zip(*targets) if isinstance(targets, list) else zip(*[targets])
-        )
-        targets, qubits = list(targets), list(qubits)
+    def _pad_qops(self, qops, targets):
+        # unpack names and unique registers
+        qnames, regs = zip(*targets) if isinstance(targets, list) else zip(*[targets])
+        qnames = list(qnames)
+        regs = set(regs)
 
-        _targets = map(
-            lambda x: (x.name, x.state),
-            set(targets),
-        )
+        # extract values from registers
+        regs = tuple((x.name, x.state) for x in regs)
 
-        all_qubits = []
-        states = []
-        for q, s in _targets:
-            states.append(s)
+        # get all names in registers
+        total_states = [state for (_, state) in regs]
+        total_qnames = [name for (names, _) in regs for name in names]
 
-            if isinstance(q, list):
-                all_qubits.extend(q)
-            else:
-                all_qubits.append(q)
+        # get all names not in operators
+        remaining_qnames = [qname for qname in total_qnames if qname not in qnames]
 
-        h_dims = hamiltonian.dims[0]
-        diff = len(all_qubits) - len(h_dims)
+        # compute padded operators
+        padded_qops = [
+            qt.tensor(*[qt.qeye(qname.dim) for qname in remaining_qnames], qop)
+            for qop in qops
+        ]
 
-        padded_hamiltonian = qt.tensor(
-            *[qt.qeye(2) for _ in list(range(diff))], hamiltonian
-        )
+        # Calculate permutation to take total_qnames to padded_qnames
+        padded_qnames = remaining_qnames + qnames
+        permute_order = [total_qnames.index(x) for x in padded_qnames]
 
-        # Calculate State
-        padded_qubits = [*set(all_qubits).difference(qubits), *qubits]
-        permute_order = [all_qubits.index(x) for x in padded_qubits]
-
-        states = (
-            states
-            if all(list(map(lambda s: s.isket, states)))
-            else [qt.ket2dm(s) if s.isket else s for s in states]
+        # Turn all states to dm if any state is dm
+        total_states = (
+            total_states
+            if all(list(map(lambda s: s.isket, total_states)))
+            else [qt.ket2dm(s) if s.isket else s for s in total_states]
         )
 
-        states = qt.tensor(*states)
-        states = states.permute(permute_order)
+        # Compute total_state
+        total_state = qt.tensor(*total_states)
+        total_state = total_state.permute(permute_order)
 
-        return states, padded_hamiltonian, padded_qubits
+        return total_state, padded_qops, padded_qnames
 
     def run_EVOLVE(self, vm):
-        args = self.get_args(3, vm)
-        targets = args[0]
+        args = self.get_args(4, vm)
+        hamiltonian = args[0]
+        jumps = args[1]
+        duration = args[2]
+        targets = args[3]
         targets = targets if isinstance(targets, list) else [targets]
 
         for name, _ in targets:
             if vm.registers[name].state is None:
                 raise ValueError("Attempted to evolve uninitialized qubit")
 
-        duration = args[1]
-        hamiltonian = args[2]
-
         tspan = np.arange(0, duration, self.options.dt)
         if tspan[-1] != duration:
             tspan = np.concat([tspan, [duration]])
         tspan += vm.machine_time
 
-        if isinstance(hamiltonian, (MathExpr, OperatorExpr)):
-            qobjevo_gen = Post(
-                QutipQobjEvoGenerator(
-                    fock_cutoff=self.options.fock_cutoff, current_time=vm.machine_time
-                )
+        H = (
+            hamiltonian
+            if isinstance(hamiltonian, qt.Qobj)
+            else qt.QobjEvo(lambda t: hamiltonian(t, t - vm.machine_time))
+        )
+        Ls = [
+            jump
+            if isinstance(jump, qt.Qobj)
+            else qt.QobjEvo(lambda t: jump(t, t - vm.machine_time))
+            for jump in jumps
+        ]
+
+        if self.options.ignore_jumps or Ls == []:
+            states, H, reordered_qubits = self._pad_qops([H], targets)
+
+            result_qobj = qt.sesolve(H, states, tspan, options={"store_states": True})
+        else:
+            states, ops, reordered_qubits = self._pad_qops([H, *Ls], targets)
+
+            H = ops[0]
+            Ls = ops[1:]
+
+            result_qobj = qt.mesolve(
+                H, states, tspan, Ls, options={"store_states": True}
             )
-            hamiltonian = qobjevo_gen(hamiltonian)
-
-        states, padded_hamiltonian, reordered_qubits = self._pad_hamiltonian(
-            hamiltonian, targets
-        )
-
-        result_qobj = qt.sesolve(
-            padded_hamiltonian,
-            states,  # Tensor product
-            tspan,
-            options={"store_states": True},
-        )
 
         vm.machine_time += duration
 
@@ -474,7 +600,9 @@ class QutipMixin:
                 vm.registers[target] = self._new_register(
                     name=vm.registers[target].name,
                     state=qt.basis(
-                        np.prod([t.dim for t in vm.registers[target].name]), 0
+                        np.prod([t.dim for t in vm.registers[target].name]),
+                        0,
+                        dtype=qt.data.CSR,
                     ),
                     vm=vm,
                 )
@@ -490,7 +618,7 @@ class QutipMixin:
 
             for name in (system[i] for i in initialized_subsystem):
                 vm.registers[name] = self._new_register(
-                    name=[name], state=qt.basis(name.dim, 0), vm=vm
+                    name=[name], state=qt.basis(name.dim, 0, dtype=qt.data.CSR), vm=vm
                 )
 
             new_state = current_state.ptrace(remaining_subsystem)
@@ -507,6 +635,7 @@ class QutipMixin:
         vm.stack.push(AnalogVMNULL)
 
     def _run_noop_MEASURE(self, vm):
+        self.get_args(num=1, vm=vm)
         warnings.warn("Measurements are being ignored by the method table")
         vm.stack.push(AnalogVMNULL)
 
@@ -515,12 +644,18 @@ class QutipMixin:
 
         reg = reg.permute([target] + remainder)
 
-        ops = [qt.basis(target.dim, i) for i in range(target.dim)]
-        ops = [qt.tensor(op.proj(), *[qt.qeye(i.dim) for i in remainder]) for op in ops]
+        ops = [qt.basis(target.dim, i, dtype=qt.data.CSR) for i in range(target.dim)]
+        ops = [
+            qt.tensor(
+                op.proj(),
+                *[qt.qeye(i.dim, dtype=qt.data.CSR) for i in remainder],
+            )
+            for op in ops
+        ]
 
         outcome, new_state = qt.measurement.measure(reg.state, ops)
 
-        target_state = qt.basis(target.dim, outcome)
+        target_state = qt.basis(target.dim, outcome, dtype=qt.data.CSR)
 
         if remainder == []:
             return outcome, target_state, None
@@ -528,7 +663,7 @@ class QutipMixin:
         remainder_state = (
             qt.tensor(
                 target_state.dag(),
-                *[qt.qeye(i.dim) for i in remainder],
+                *[qt.qeye(i.dim, dtype=qt.data.CSR) for i in remainder],
             )
             * new_state
         )
@@ -608,7 +743,9 @@ class QutipMixin:
                 vm.registers[target] = self._new_register(
                     name=vm.registers[target].name,
                     state=qt.basis(
-                        np.prod([t.dim for t in vm.registers[target].name]), 0
+                        np.prod([t.dim for t in vm.registers[target].name]),
+                        0,
+                        dtype=qt.data.CSR,
                     ),
                     vm=vm,
                 )

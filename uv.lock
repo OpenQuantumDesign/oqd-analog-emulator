@@ -2493,13 +2493,13 @@ dependencies = [
     { name = "jupyter" },
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "oqd-compiler-infrastructure" },
     { name = "oqd-core" },
     { name = "oqd-dataschema" },
     { name = "pydantic" },
     { name = "qutip", version = "5.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "qutip", version = "5.3.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "setuptools" },
+    { name = "typer" },
 ]
 
 [package.optional-dependencies]
@@ -2518,6 +2518,7 @@ tests = [
 dev = [
     { name = "jupyter" },
     { name = "pre-commit" },
+    { name = "rich" },
     { name = "ruff" },
 ]
 
@@ -2532,14 +2533,14 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'docs'" },
     { name = "mkdocstrings", marker = "extra == 'docs'" },
     { name = "mkdocstrings-python", marker = "extra == 'docs'" },
-    { name = "oqd-compiler-infrastructure", git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure" },
-    { name = "oqd-core", git = "https://github.com/openquantumdesign/oqd-core?branch=v1.0" },
+    { name = "oqd-core", git = "https://github.com/openquantumdesign/oqd-core?branch=grammar_modification" },
     { name = "oqd-dataschema", git = "https://github.com/openquantumdesign/oqd-dataschema" },
     { name = "pydantic", specifier = ">=2.4" },
     { name = "pymdown-extensions", marker = "extra == 'docs'" },
     { name = "pytest", marker = "extra == 'tests'" },
     { name = "qutip", specifier = ">=5.0.1" },
     { name = "setuptools" },
+    { name = "typer", specifier = ">=0.27.2" },
 ]
 provides-extras = ["docs", "tests"]
 
@@ -2547,22 +2548,24 @@ provides-extras = ["docs", "tests"]
 dev = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "rich", specifier = ">=15.0.0" },
     { name = "ruff", specifier = ">=0.9.7" },
 ]
 
 [[package]]
 name = "oqd-compiler-infrastructure"
 version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure#02527d1f5420f9094f056a28522e66c5f204c45c" }
+source = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure?branch=main#e05d772f51591999db5d40552317b32ad46de5e2" }
 dependencies = [
     { name = "ast-comments" },
+    { name = "graphviz" },
     { name = "pydantic" },
 ]
 
 [[package]]
 name = "oqd-core"
 version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-core?branch=v1.0#152b884aed6e077c3eed24af98107c28827089fd" }
+source = { git = "https://github.com/openquantumdesign/oqd-core?branch=grammar_modification#81e3fec97cc3ae1a19d11827252ebbd866b1c4a3" }
 dependencies = [
     { name = "antlr4-python3-runtime" },
     { name = "antlr4-tools" },

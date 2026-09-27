@@ -12,55 +12,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
+from __future__ import annotations
+
+from collections.abc import MutableSequence
+from enum import Enum, auto
 from typing import Any
 
-import qutip as qt
 from oqd_compiler_infrastructure import RewriteRule, TypeReflectBaseModel
-from oqd_core.interface.analog.expr import (
+from oqd_core.interface.analog import (
     Access,
+    Add,
     AnalogList,
+    And,
     Annihilation,
-    Bool,
-    BoolAnd,
-    BoolEq,
-    BoolGreaterThan,
-    BoolGreaterThanEq,
-    BoolLessThan,
-    BoolLessThanEq,
-    BoolNot,
-    BoolNotEq,
-    BoolOr,
+    BuiltinCall,
+    Complex,
+    Constant,
     Creation,
+    Declaration,
+    Div,
+    Eq,
     Evolve,
     Extract,
-    Identifier,
+    Geq,
+    Gt,
     Identity,
     Initialize,
-    MathAdd,
-    MathDiv,
-    MathFunc,
-    MathImag,
-    MathMul,
-    MathNum,
-    MathPow,
-    MathSub,
-    MathVar,
+    Kron,
+    Leq,
+    Lt,
     Measure,
     ModeRegister,
-    OperatorAdd,
-    OperatorKron,
-    OperatorMul,
-    OperatorSub,
+    Mul,
+    Neg,
+    Neq,
+    Not,
+    Or,
     PauliI,
     PauliX,
     PauliY,
     PauliZ,
+    Pos,
+    Pow,
     QuantumRegister,
+    RuntimeVar,
+    Sub,
+    Xor,
 )
-from oqd_core.interface.analog.statement import Declaration
+from oqd_core.interface.analog.expr import BinaryOp, Ladder, Operator, Pauli, UnaryOp
 from pydantic import (
-    BaseModel,
     ConfigDict,
     model_validator,
 )
@@ -69,102 +69,179 @@ from pydantic import (
 
 
 class ListTerminators(Enum):
-    LISTSTART = 0
-    LISTEND = 1
-
-
-class Alias(BaseModel):
-    target: Identifier
+    LISTSTART = auto()
+    LISTEND = auto()
 
 
 class OpCode(Enum):
-    GLOBAL = 0
-    LOAD = 1
-    EXTRACT = 2
-    CONST = 3
-    STORE = 4
-    ADD = 5
-    MUL = 6
-    SUB = 7
-    DIV = 8
-    POW = 9
-    FUNC = 10
-    KRON = 11
-    IMAG = 12
-    NOT = 13
-    AND = 14
-    OR = 15
-    EQ = 16
-    NEQ = 17
-    LT = 18
-    LTEQ = 19
-    GT = 20
-    GTEQ = 21
-    EVOLVE = 22
-    INIT = 23
-    MEASURE = 24
-    QREG = 25
-    MREG = 26
+    # Stack
+    CONST = auto()  # Adds item to stack
 
-    @property
-    def num_args(self):
-        match self:
-            case _ if self is OpCode.QREG:
-                return 3
-            case _ if self in [OpCode.EXTRACT, OpCode.MREG]:
-                return 2
-            case _ if self in [
-                OpCode.LOAD,
-                OpCode.GLOBAL,
-                OpCode.FUNC,
-                OpCode.CONST,
-                OpCode.STORE,
-            ]:
-                return 1
-            case _:
-                return 0
+    # Store
+    GLOBAL = auto()  # Allocates space on store for variable
+    STORE = auto()  # Store value to store
+    LOAD = auto()  # Load value from store
+    LOADV = auto()  # Load runtime value
+
+    # List
+    EXTRACT = auto()  # Extract element from list in store
+
+    # Arith
+    NEG = auto()  # Negative
+    POS = auto()  # Positive
+    ADD = auto()  # Addition
+    MUL = auto()  # Multiply
+    SUB = auto()  # Subtract
+    DIV = auto()  # Divide
+    POW = auto()  # Exponentiation
+    KRON = auto()  # Kronecker product
+
+    # Bool
+    NOT = auto()  # Logical Not
+    AND = auto()  # Logical And
+    OR = auto()  # Logical Or
+    XOR = auto()  # Logical Xor
+
+    # Compare
+    EQ = auto()  # Equal
+    NEQ = auto()  # Not Equal
+    LT = auto()  # Less than
+    LEQ = auto()  # Less than equal
+    GT = auto()  # Greater than
+    GEQ = auto()  # Greater than equal
+
+    # Pauli
+    PI = auto()  # Pauli Identity
+    PX = auto()  # Pauli X
+    PY = auto()  # Pauli Y
+    PZ = auto()  # Pauli Z
+
+    # Mode
+    MA = auto()  # Annihilation
+    MC = auto()  # Creation
+    MI = auto()  # Mode Identity
+
+    # Quantum reg
+    QREG = auto()  # Discrete qudit quantum register
+    MREG = auto()  # Infinite mode quantum register
+
+    # Quantum op
+    INIT = auto()  # Initialize quantum targets
+    EVOLVE = auto()  # Evolve quantum targets
+    MEASURE = auto()  # Measure quantum targets
+
+    # Func
+    MFUNC = auto()  # Math functions
+    LEN = auto()  # length of array
+    RANGE = auto()  # create a list with a range of values
+    FLATTEN = auto()  # Flatten a list of list
+
+    # @property
+    # def num_args(self):
+    #     match self:
+    #         case _ if self is OpCode.QREG:
+    #             return 3
+    #         case _ if self in [OpCode.EXTRACT, OpCode.MREG]:
+    #             return 2
+    #         case _ if self in [
+    #             OpCode.LOAD,
+    #             OpCode.GLOBAL,
+    #             OpCode.FUNC,
+    #             OpCode.CONST,
+    #             OpCode.STORE,
+    #             OpCode.EXTRACT,
+    #             OpCode.MREG,
+    #             OpCode.QREG,
+    #         ]:
+    #             return 1
+    #         case _:
+    #             return 0
+
+    @staticmethod
+    def from_ast(op):
+        match op:
+            case PauliI():
+                return OpCode.PI
+            case PauliX():
+                return OpCode.PX
+            case PauliY():
+                return OpCode.PY
+            case PauliZ():
+                return OpCode.PZ
+            case Annihilation():
+                return OpCode.MA
+            case Creation():
+                return OpCode.MC
+            case Identity():
+                return OpCode.MI
+            case Pos():
+                return OpCode.POS
+            case Neg():
+                return OpCode.NEG
+            case Add():
+                return OpCode.ADD
+            case Sub():
+                return OpCode.SUB
+            case Mul():
+                return OpCode.MUL
+            case Div():
+                return OpCode.DIV
+            case Pow():
+                return OpCode.POW
+            case Kron():
+                return OpCode.KRON
+            case Not():
+                return OpCode.NOT
+            case And():
+                return OpCode.AND
+            case Or():
+                return OpCode.OR
+            case Xor():
+                return OpCode.XOR
+            case Eq():
+                return OpCode.EQ
+            case Neq():
+                return OpCode.NEQ
+            case Lt():
+                return OpCode.LT
+            case Leq():
+                return OpCode.LEQ
+            case Gt():
+                return OpCode.GT
+            case Geq():
+                return OpCode.GEQ
+            case BuiltinCall(func="len"):
+                return OpCode.LEN
+            case BuiltinCall(func="range"):
+                return OpCode.RANGE
+            case BuiltinCall(func="flatten"):
+                return OpCode.FLATTEN
+        raise ValueError()
 
 
 AnalogVMNULL = [ListTerminators.LISTSTART, ListTerminators.LISTEND]
 
-########################################################################################
-
-
-def _is_constant_math(model) -> bool:
-    if isinstance(model, (Access, MathNum, MathImag)):
-        return True
-    if isinstance(model, MathVar):
-        return False
-    if isinstance(model, MathFunc):
-        arg = model.expr
-        if isinstance(arg, list):
-            return all(_is_constant_math(a) for a in arg)
-        return _is_constant_math(arg)
-    if isinstance(model, (MathAdd, MathSub, MathMul, MathDiv, MathPow)):
-        return _is_constant_math(model.expr1) and _is_constant_math(model.expr2)
-    if isinstance(model, (OperatorAdd, OperatorKron, OperatorMul, OperatorSub)):
-        return _is_constant_math(model.op1) and _is_constant_math(model.op2)
-    return True
-
 
 ########################################################################################
 
 
-class AnalogInstruction(TypeReflectBaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
-    opcode: OpCode
-    args: list[Any] = []
-
-    @model_validator(mode="after")
-    def validate_args_num(self):
-        # print(value)
-        if self.opcode.num_args != len(self.args):
-            raise ValueError(...)
-        return self
-
-
-class AnalogInstructions(TypeReflectBaseModel):
+class AnalogInstructions(MutableSequence, TypeReflectBaseModel):
     instructions: list[AnalogInstruction] = []
+
+    def __getitem__(self, idx):
+        return self.instructions[idx]
+
+    def __setitem__(self, idx, value):
+        self.instructions[idx] = value
+
+    def __delitem__(self, idx):
+        del self.instructions[idx]
+
+    def __len__(self):
+        return len(self.instructions)
+
+    def insert(self, idx, value):
+        self.instructions.insert(idx, value)
 
     def __add__(self, other):
         if isinstance(other, AnalogInstruction):
@@ -177,276 +254,202 @@ class AnalogInstructions(TypeReflectBaseModel):
         return AnalogInstructions(instructions=other.instructions + self.instructions)
 
 
+class AnalogInstruction(TypeReflectBaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+    opcode: OpCode
+    args: list[Any] = []
+
+    def __add__(self, other):
+        if isinstance(other, AnalogInstruction):
+            return AnalogInstructions(instructions=[self, other])
+
+
 ########################################################################################
 
 
 class AnalogInstructionsCodegen(RewriteRule):
-    def __init__(self, fock_cutoff: int = 4):
-        super().__init__()
-        self._fock_cutoff = fock_cutoff
+    @staticmethod
+    def const(value, *, single=False):
+        instr = AnalogInstruction(opcode=OpCode.CONST, args=[value])
+        return instr if single else AnalogInstructions(instructions=[instr])
+
+    @staticmethod
+    def op(code):
+        return AnalogInstructions(instructions=[AnalogInstruction(opcode=code)])
+
+    ########################################################################################
+
+    # Variables
 
     def map_Access(self, model: Access):
-        instruction = AnalogInstruction(opcode=OpCode.LOAD, args=[model.name])
-        return AnalogInstructions(instructions=[instruction])
+        out = self.const(model.name)
+        out += self.op(OpCode.LOAD)
+        return out
 
     def map_Declaration(self, model: Declaration):
-        if not _is_constant_math(model):
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
-            return AnalogInstructions(instructions=[instruction])
-        if isinstance(model.value, QuantumRegister):
-            return self.map_QuantumRegister(model.value, model.name)
-        if isinstance(model.value, ModeRegister):
-            return self.map_ModeRegister(model.value, model.name)
-
-        instr1 = AnalogInstruction(opcode=OpCode.GLOBAL, args=[model.name])
-        if isinstance(model.value, Access):
-            instr2 = AnalogInstruction(
-                opcode=OpCode.CONST, args=[Alias(target=model.value.name)]
-            )
-        else:
-            instr2 = self(model.value)
-        instr3 = AnalogInstruction(opcode=OpCode.STORE, args=[model.name])
-        instructions = AnalogInstructions(instructions=[instr1]) + instr2 + instr3
-        return instructions
-
-    def map_MathNum(self, model: MathNum):
-        if not _is_constant_math(model):
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model.value])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_MathImag(self, model: MathImag):
-        if not _is_constant_math(model):
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[1j])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_MathAdd(self, model: MathAdd):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.expr1) + self(model.expr2)
-            instructions += AnalogInstruction(opcode=OpCode.ADD)
-        return instructions
-
-    def map_MathSub(self, model: MathSub):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.expr1) + self(model.expr2)
-            instructions += AnalogInstruction(opcode=OpCode.SUB)
-        return instructions
-
-    def map_MathMul(self, model: MathMul):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.expr1) + self(model.expr2)
-            instructions += AnalogInstruction(opcode=OpCode.MUL)
-        return instructions
-
-    def map_OperatorMul(self, model: OperatorMul):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.op1) + self(model.op2)
-            instructions += AnalogInstruction(opcode=OpCode.MUL)
-        return instructions
-
-    def map_OperatorAdd(self, model: OperatorAdd):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.op1) + self(model.op2)
-            instructions += AnalogInstruction(opcode=OpCode.ADD)
-        return instructions
-
-    def map_OperatorSub(self, model: OperatorSub):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.op1) + self(model.op2)
-            instructions += AnalogInstruction(opcode=OpCode.SUB)
-        return instructions
-
-    def map_MathDiv(self, model: MathDiv):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.expr1) + self(model.expr2)
-            instructions += AnalogInstruction(opcode=OpCode.DIV)
-        return instructions
-
-    def map_MathPow(self, model: MathPow):
-        instructions = AnalogInstructions()
-        if not _is_constant_math(model):
-            instructions += AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        else:
-            instructions += self(model.expr1) + self(model.expr2)
-            instructions += AnalogInstruction(opcode=OpCode.POW)
-        return instructions
-
-    def map_MathVar(self, model: MathVar):
-        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_MathFunc(self, model: MathFunc):
-        if not _is_constant_math(model):
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
-            return AnalogInstructions(instructions=[instruction])
-        if isinstance(model.expr, list):
-            instructions = AnalogInstructions()
-            for expr in model.expr:
-                instructions += self(expr)
-        else:
-            instructions = self(model.expr)
-        instr1 = AnalogInstruction(opcode=OpCode.FUNC, args=[model.func])
-        instructions += instr1
-        return instructions
-
-    def map_PauliI(self, model: PauliI):
-        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.qeye(2)])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_PauliX(self, model: PauliX):
-        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.sigmax()])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_PauliY(self, model: PauliY):
-        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.sigmay()])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_PauliZ(self, model: PauliZ):
-        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[qt.sigmaz()])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_Identity(self, model: Identity):
-        instruction = AnalogInstruction(
-            opcode=OpCode.CONST, args=[qt.qeye(self._fock_cutoff)]
+        out = self.const(model.name)
+        out += self.op(OpCode.GLOBAL)
+        out += (
+            self.const(f"&{model.value.name}")
+            if isinstance(model.value, Access)
+            else self(model.value)
         )
-        return AnalogInstructions(instructions=[instruction])
+        out += self.const(model.name)
+        out += self.op(OpCode.STORE)
+        return out
 
-    def map_Creation(self, model: Annihilation):
-        instruction = AnalogInstruction(
-            opcode=OpCode.CONST, args=[qt.create(self._fock_cutoff)]
-        )
-        return AnalogInstructions(instructions=[instruction])
+    def map_RuntimeVar(self, model: RuntimeVar):
+        out = self.const(f"{model.name}")
+        out += self.op(OpCode.LOADV)
+        return out
 
-    def map_Annihilation(self, model: Creation):
-        instruction = AnalogInstruction(
-            opcode=OpCode.CONST, args=[qt.destroy(self._fock_cutoff)]
-        )
-        return AnalogInstructions(instructions=[instruction])
+    ########################################################################################
 
-    def map_OperatorKron(self, model: OperatorKron):
-        if not _is_constant_math(model):
-            instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model])
-            return AnalogInstructions(instructions=[instruction])
-        instr1 = AnalogInstruction(opcode=OpCode.KRON)
-        instructions = self(model.op1) + self(model.op2) + instr1
-        return instructions
+    # Constant
 
-    def map_Bool(self, model: Bool):
-        instruction = AnalogInstruction(opcode=OpCode.CONST, args=[model.value])
-        return AnalogInstructions(instructions=[instruction])
+    def map_Constant(self, model: Constant):
+        value = model.value
+        if isinstance(value, Complex):
+            value = value.real + 1j * value.imag
 
-    def map_BoolNot(self, model: BoolNot):
-        instr1 = AnalogInstruction(opcode=OpCode.NOT)
-        instructions = self(model.expr) + instr1
-        return instructions
+        return self.const(value)
 
-    def map_BoolAnd(self, model: BoolAnd):
-        instr1 = AnalogInstruction(opcode=OpCode.AND)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    def map_Pauli(self, model: Pauli):
+        out = self(model.dim)
+        out += self(model.level2)
+        out += self(model.level1)
+        out += self.op(OpCode.from_ast(model))
+        return out
 
-    def map_BoolOr(self, model: BoolOr):
-        instr1 = AnalogInstruction(opcode=OpCode.OR)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    def map_Ladder(self, model: Ladder):
+        return self.op(OpCode.from_ast(model))
 
-    def map_BoolEq(self, model: BoolEq):
-        instr1 = AnalogInstruction(opcode=OpCode.EQ)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    ########################################################################################
 
-    def map_BoolNotEq(self, model: BoolNotEq):
-        instr1 = AnalogInstruction(opcode=OpCode.NEQ)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    # Arithmetic & Boolean Operation
 
-    def map_BoolLessThan(self, model: BoolLessThan):
-        instr1 = AnalogInstruction(opcode=OpCode.LT)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    def map_BinaryOp(self, model: BinaryOp):
+        out = self(model.exprs[-1])
+        for e in reversed(model.exprs[:-1]):
+            out += self(e)
+            out += self.op(OpCode.from_ast(model))
+        return out
 
-    def map_BoolLessThanEq(self, model: BoolLessThanEq):
-        instr1 = AnalogInstruction(opcode=OpCode.LTEQ)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    def map_UnaryOp(self, model: UnaryOp):
+        out = self(model.expr)
+        out += self.op(OpCode.from_ast(model))
+        return out
 
-    def map_BoolGreaterThan(self, model: BoolGreaterThan):
-        instr1 = AnalogInstruction(opcode=OpCode.GT)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
+    ########################################################################################
 
-    def map_BoolGreaterThanEq(self, model: BoolGreaterThanEq):
-        instr1 = AnalogInstruction(opcode=OpCode.GTEQ)
-        instructions = self(model.expr1) + self(model.expr2) + instr1
-        return instructions
-
-    def map_QuantumRegister(self, model: QuantumRegister, name: str):
-        instruction = AnalogInstruction(opcode=OpCode.QREG, args=[name, model.size, 2])
-        return AnalogInstructions(instructions=[instruction])
-
-    def map_ModeRegister(self, model: ModeRegister, name: str):
-        instruction = AnalogInstruction(opcode=OpCode.MREG, args=[name, model.size])
-        return AnalogInstructions(instructions=[instruction])
+    # List
 
     def map_AnalogList(self, model: AnalogList):
-        instructions = AnalogInstructions()
-        instructions += AnalogInstruction(
-            opcode=OpCode.CONST, args=[ListTerminators.LISTEND]
-        )
-        for i in list(range(len(model.values) - 1, -1, -1)):
-            value = model.values[i]
-            instructions += self(value)
-        instructions += AnalogInstruction(
-            opcode=OpCode.CONST, args=[ListTerminators.LISTSTART]
-        )
-        return instructions
+        out = self.const(ListTerminators.LISTEND)
+        for value in reversed(model.values):
+            out += self(value)
+        out += self.const(ListTerminators.LISTSTART)
+        return out
 
     def map_Extract(self, model: Extract):
-        instruction = AnalogInstruction(
-            opcode=OpCode.EXTRACT, args=[model.access.name, model.index]
-        )
-        return AnalogInstructions(instructions=[instruction])
+        out = self(model.index)
+        out += self.const(model.access.name)
+        out += self.op(OpCode.EXTRACT)
+        return out
+
+    ########################################################################################
+
+    # Functions
+
+    def map_BuiltinCall(self, model: BuiltinCall):
+        out = self(model.args[-1])
+
+        for arg in reversed(model.args[:-1]):
+            out += self(arg)
+
+        match model.func:
+            case "len" | "flatten":
+                out += self.op(OpCode.from_ast(model))
+            case "range" if len(model.args) == 1:
+                out.insert(-2, self.const(1, single=True))
+                out += self.const(0)
+                out += self.op(OpCode.from_ast(model))
+            case "range" if len(model.args) == 2:
+                out += self.const(1)
+                out += self.op(OpCode.from_ast(model))
+            case "range" if len(model.args) == 3:
+                out += self.op(OpCode.from_ast(model))
+            case (
+                "abs"
+                | "real"
+                | "imag"
+                | "conj"
+                | "sin"
+                | "cos"
+                | "tan"
+                | "atan2"
+                | "exp"
+                | "log"
+                | "sinh"
+                | "cosh"
+                | "tanh"
+                | "atan"
+                | "acos"
+                | "asin"
+                | "atanh"
+                | "asinh"
+                | "acosh"
+                | "heaviside"
+                | "round"
+            ):
+                out += self.const(f"${model.func}")
+                out += (
+                    self.op(OpCode.FUNC)
+                    if model.func
+                    in [
+                        "range",
+                        "len",
+                        "flatten",
+                    ]
+                    else self.op(OpCode.MFUNC)
+                )
+            case _:
+                raise ValueError()
+        return out
+
+    ########################################################################################
+
+    # Quantum Register
+
+    def map_QuantumRegister(self, model: QuantumRegister):
+        out = self(model.dim)
+        out += self(model.size)
+        out += self.op(OpCode.QREG)
+        return out
+
+    def map_ModeRegister(self, model: ModeRegister):
+        out = self(model.size)
+        out += self.op(OpCode.MREG)
+        return out
+
+    ########################################################################################
+
+    # Quantum Operation
 
     def map_Evolve(self, model: Evolve):
-        instr1 = AnalogInstruction(opcode=OpCode.EVOLVE)
-        instructions = (
-            self(model.hamiltonian)
-            + self(model.duration)
-            + self(model.targets)
-            + instr1
-        )
-        return instructions
+        out = self(model.targets)
+        out += self(model.duration)
+        out += self(model.jumps)
+        out += self(model.hamiltonian)
+        out += self.op(OpCode.EVOLVE)
+        return out
 
     def map_Initialize(self, model: Initialize):
-        instr1 = AnalogInstruction(opcode=OpCode.INIT)
-        instructions = self(model.targets) + instr1
-        return instructions
+        out = self(model.targets)
+        out += self.op(OpCode.INIT)
+        return out
 
     def map_Measure(self, model: Measure):
-        instr1 = AnalogInstruction(opcode=OpCode.MEASURE)
-        instructions = self(model.targets) + instr1
-        return instructions
+        out = self(model.targets)
+        out += self.op(OpCode.MEASURE)
+        return out
