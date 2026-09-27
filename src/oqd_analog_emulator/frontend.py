@@ -126,7 +126,7 @@ class AnalogREPR:
                 case "exit" | "exit()":
                     break
                 case "reset" | "reset()":
-                    self.interp.clear()
+                    self.interp.reset()
                     previous = ""
                     continue
 
