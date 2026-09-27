@@ -221,7 +221,7 @@ class AnalogVirtualMachine:
             args = instruction.args
             self.method_table.run(opcode=opcode, args=args, vm=self)
 
-    def clear(self):
+    def reset(self):
         self.stack = AnalogStack()
         self.store = {}
         self.registers = AnalogRegisters()
@@ -273,5 +273,5 @@ class AnalogInterpreter:
     def get_state(self, return_values):
         return self.vm.get_state(return_values)
 
-    def clear(self):
-        self.vm.clear()
+    def reset(self):
+        self.vm.reset()
