@@ -15,100 +15,175 @@
 
 import pathlib
 import readline as readline
+from collections.abc import Callable
 
+import qutip as qt
 import typer
-from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
-from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
+from oqd_compiler_infrastructure import CFGBlockAccumulator, RelabelCFGBlocks
+from oqd_core.analysis.analog import AnalogCFGBuilder
+from oqd_core.analysis.analog.dim_checker import DimensionChecker, DInvalid
+from oqd_core.analysis.analog.reaching_def import AvailableVariableAnalysis
 from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
-from oqd_core.compiler.analog.cfg_passes.walk import (
-    canonicalize_math_cfg,
-    canonicalize_operators_cfg,
-)
-from oqd_core.compiler.analog.verify.passes import (
-    verify_hamiltonian_target_dim,
-    verify_register_access_dim,
+from oqd_core.analysis.analog.types import (
+    TBool,
+    TComplex,
+    TFloat,
+    TInt,
+    TList,
+    TOp,
+    TQRegElem,
 )
 from oqd_core.frontend.analog import parse_analog
 
+from oqd_analog_emulator.instructions import ListTerminators
 from oqd_analog_emulator.interpreter import AnalogInterpreter
+from oqd_analog_emulator.method_table import RegisterName
+from oqd_analog_emulator.qutip import QutipMethodTable as QutipMethodTable
 
 ########################################################################################
 
 
 class AnalogREPR:
+    STARTSTRING = f"""
+{"=" * 80}
+{"Welcome to the Analog Interpreter REPR for the Analog langugage of OQD's stack!":^80}
+{"=" * 80}
+    """.strip()
+
     def __init__(self, *, method_table, options, **kwargs):
         self.interp = AnalogInterpreter(
             method_table=method_table, options=options, **kwargs
         )
 
-    def compile(self, program: str, *, type_check=True):
-        # TODO: Enable forwarding of type checker and symbol table results
-        # TODO: to following code to be executed
+        self.avail_checker = AvailableVariableAnalysis()
+        self.type_checker = AnalogTypeChecker()
+        self.dim_checker = DimensionChecker()
 
+    def _infer_type(self, value):
+        match value:
+            case RegisterName():
+                return TQRegElem
+            case bool():
+                return TBool
+            case int():
+                return TInt
+            case float():
+                return TFloat
+            case complex():
+                return TComplex
+            case qt.Qobj() | qt.QobjEvo():
+                return TOp
+            case list():
+                return TList[self._infer_type(value[1])]
+            case Callable():
+                self._infer_type(value(0, 0))
+
+        raise TypeError()
+
+    def _infer_dim(self, value):
+        match value:
+            case RegisterName():
+                return [value.dim]
+            case qt.Qobj() | qt.QobjEvo():
+                return value.dims[0]
+            case Callable():
+                return self._infer_dim(value(0, 0))
+            case list():
+                elem_dim = self._infer_dim(value[1])
+                return [
+                    elem_dim[0] if isinstance(e, RegisterName) else elem_dim
+                    for e in value
+                    if not isinstance(e, ListTerminators)
+                ]
+            case _:
+                return DInvalid
+
+    def _get_envs(self):
+        avail_env = {x for x in self.interp.vm.store.keys() if x[0] not in ["$", "#"]}
+
+        type_env = {
+            k: self._infer_type(v)
+            for k, v in self.interp.vm.store.items()
+            if k[0] not in ["$", "#"]
+        }
+
+        dim_env = {
+            k: self._infer_dim(v)
+            for k, v in self.interp.vm.store.items()
+            if k[0] not in ["$", "#"]
+        }
+
+        return avail_env, type_env, dim_env
+
+    def compile(self, program: str):
         circuit = parse_analog(program)
-        cfg = AnalogCFGBuilder().run(circuit)
+        cfg = AnalogCFGBuilder()(circuit)
+        cfg = CFGBlockAccumulator()(cfg)
+        cfg = RelabelCFGBlocks()(cfg)
 
-        canonicalize_operators_cfg(cfg)
-        canonicalize_math_cfg(cfg)
+        avail_env, type_env, dim_env = self._get_envs()
 
-        if type_check:
-            checker = AnalogTypeChecker(cfg)
-
-            symbol_analysis = AnalogSymbolTableBuilder(cfg, checker.dataflow_result)
-            symbol_table = symbol_analysis.symbol_table
-
-            verify_register_access_dim(cfg, symbol_table)
-            verify_hamiltonian_target_dim(cfg, symbol_table)
+        self.avail_checker.analyze(
+            cfg,
+            initial_state={
+                node: avail_env if node == 0 else self.avail_checker.lattice.bottom()
+                for node in cfg.nodes()
+            }
+            if avail_env
+            else None,
+        )
+        self.type_checker.analyze(
+            cfg,
+            initial_state={
+                node: type_env if node == 0 else self.type_checker.lattice.top()
+                for node in cfg.nodes()
+            }
+            if type_env
+            else None,
+        )
+        self.dim_checker.analyze(
+            cfg,
+            initial_state={
+                node: dim_env if node == 0 else self.dim_checker.lattice.top()
+                for node in cfg.nodes()
+            }
+            if dim_env
+            else None,
+        )
 
         return cfg
 
-    def _run_block(self, block, previous):
+    def _run_block(self, block, *, avail_env=None, type_env=None, dim_env=None):
         success = False
         try:
-            new_program = previous + "\n" + block
-            # * Workaround invalild type checking by rerunning type check combining executed code and new code
-            self.compile(new_program, type_check=True)
-
-            cfg = self.compile(block, type_check=False)
+            cfg = self.compile(block)
 
         except Exception as e:
-            print(f"{e.__class__.__name__}: {e}")
-
-            new_program = previous
-            cfg = None
+            print(f"{e.__class__.__name__}: {e}", flush=True)
+            return success
 
         try:
-            res = self.interp.run(cfg=cfg) if cfg else ""
-
+            res = self.interp.run(cfg=cfg)
             success = True
-
             print(f" : {res}")
         except Exception as e:
-            print(f"{e.__class__.__name__}: {e}")
+            print(f"{e.__class__.__name__}: {e}", flush=True)
 
-        return new_program, success
+        return success
 
     def run(self, program: str = ""):
-        start_string = f"""
-{"=" * 80}
-{"Welcome to the Analog Interpreter REPR for the Analog langugage of OQD's stack!":^80}
-{"=" * 80}
-        
-        """.strip()
-
-        print(start_string)
+        print(AnalogREPR.STARTSTRING)
 
         ANSIGREEN = "\001\033[1;32m\002"
         ANSIRED = "\001\033[1;31m\002"
         ANSIRESET = "\001\033[0m\002"
 
         success = True
-        previous = ""
         if program:
             for n, line in enumerate(program.splitlines()):
                 print(f"{ANSIGREEN}{'>>' if n == 0 else ' >'}{ANSIRESET} {line}")
 
-            previous, success = self._run_block(program, previous)
+            success = self._run_block(program)
 
         while True:
             ansi_color = ANSIGREEN if success else ANSIRED
@@ -127,12 +202,10 @@ class AnalogREPR:
                     break
                 case "reset" | "reset()":
                     self.interp.reset()
-                    previous = ""
                     continue
 
             block = "\n".join(lines)
-
-            previous, success = self._run_block(block, previous)
+            success = self._run_block(block)
 
 
 ########################################################################################
