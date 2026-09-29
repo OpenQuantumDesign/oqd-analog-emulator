@@ -236,6 +236,18 @@ class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
 
 
 class ArithmeticMixin:
+    @staticmethod
+    def _pow(x, y):
+        if not isinstance(x, qt.Qobj):
+            return operator.pow(x, y)
+
+        x_np = x.full()
+
+        res_np = np.linalg.matrix_power(x_np, y)
+
+        res = qt.Qobj(res_np, dims=x.dims)
+        return res
+
     def run_NEG(self, vm):
         arg = self.get_args(num=1, vm=vm)[0]
 
@@ -269,7 +281,7 @@ class ArithmeticMixin:
     def run_POW(self, vm):
         args = left, right = self.get_args(num=2, vm=vm)
 
-        vm.stack.push(_build_callable(operator.pow, *args))
+        vm.stack.push(_build_callable(ArithmeticMixin._pow, *args))
 
     def run_MFUNC(self, vm):
         name = self.get_args(num=1, vm=vm)[0]
@@ -377,19 +389,11 @@ class StackStoreMixin:
         vm.stack.push(value)
 
     def run_EXTRACT(self, vm):
-        name = vm.stack.pop()
-        while True:
-            value = vm.store.get(name, None)
-
-            if not isinstance(value, str) or not value.startswith("&"):
-                break
-
-            name = value.removeprefix("&")
-
+        value = vm.stack.pop()
         index = vm.stack.pop()
 
-        if name in vm.store and index < len(vm.store[name]) - 2:
-            item = vm.store[name][index + 1]
+        if index < len(value) - 2:
+            item = value[index + 1]
             vm.stack.push(item)
         else:
             raise ValueError
@@ -514,6 +518,11 @@ class QutipMixin:
 
         return total_state, padded_qops, padded_qnames
 
+    def _verify_normalized(self, t, state):
+        if not np.isclose(state.norm(), 1.0, atol=0, rtol=self.options.normalized_tol):
+            raise ValueError("State not normalized through evolution")
+        return
+
     def run_EVOLVE(self, vm):
         args = self.get_args(4, vm)
         hamiltonian = args[0]
@@ -544,9 +553,22 @@ class QutipMixin:
         ]
 
         if self.options.ignore_jumps or Ls == []:
-            states, H, reordered_qubits = self._pad_qops([H], targets)
+            states, ops, reordered_qubits = self._pad_qops([H], targets)
 
-            result_qobj = qt.sesolve(H, states, tspan, options={"store_states": True})
+            H = ops[0]
+
+            result_qobj = qt.sesolve(
+                H,
+                states,
+                tspan,
+                e_ops={"_verify_normalized": self._verify_normalized}
+                if self.options.verify_normalized
+                else {},
+                options={
+                    "store_states": True,
+                    "normalize_output": self.options.normalize_state,
+                },
+            )
         else:
             states, ops, reordered_qubits = self._pad_qops([H, *Ls], targets)
 
@@ -554,7 +576,17 @@ class QutipMixin:
             Ls = ops[1:]
 
             result_qobj = qt.mesolve(
-                H, states, tspan, Ls, options={"store_states": True}
+                H,
+                states,
+                tspan,
+                Ls,
+                e_ops={"_verify_normalized": self._verify_normalized}
+                if self.options.verify_normalized
+                else {},
+                options={
+                    "store_states": True,
+                    "normalize_output": self.options.normalize_state,
+                },
             )
 
         vm.machine_time += duration

@@ -14,9 +14,12 @@
 
 
 from collections.abc import MutableMapping, MutableSequence
+from functools import wraps
 from typing import Any, List
 
 import numpy as np
+import qutip as qt
+import scipy
 from oqd_compiler_infrastructure import CFG
 
 from oqd_analog_emulator.instructions import (
@@ -163,6 +166,21 @@ class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
 ########################################################################################
 
 
+def extend_function_to_operator(func):
+    @wraps(func)
+    def _func(x):
+        if isinstance(x, qt.Qobj):
+            x_np = x.full()
+
+            res_np = getattr(scipy.linalg, f"{func.__name__}m")(x_np)
+
+            res = qt.Qobj(res_np, dims=x.dims)
+            return res
+        return func(x)
+
+    return _func
+
+
 class AnalogVirtualMachine:
     def __init__(
         self,
@@ -177,14 +195,14 @@ class AnalogVirtualMachine:
             "$real": np.real,
             "$imag": np.imag,
             "$conj": np.conj,
-            "$sin": np.sin,
-            "$cos": np.cos,
-            "$tan": np.tan,
-            "$exp": np.exp,
-            "$log": np.log,
-            "$sinh": np.sinh,
-            "$cosh": np.cosh,
-            "$tanh": np.tanh,
+            "$sin": extend_function_to_operator(np.sin),
+            "$cos": extend_function_to_operator(np.cos),
+            "$tan": extend_function_to_operator(np.tan),
+            "$exp": extend_function_to_operator(np.exp),
+            "$log": extend_function_to_operator(np.log),
+            "$sinh": extend_function_to_operator(np.sinh),
+            "$cosh": extend_function_to_operator(np.cosh),
+            "$tanh": extend_function_to_operator(np.tanh),
             "$asin": np.asin,
             "$acos": np.acos,
             "$atan": np.atan,

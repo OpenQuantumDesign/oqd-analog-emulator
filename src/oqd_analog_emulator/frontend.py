@@ -17,6 +17,7 @@ import pathlib
 import readline as readline
 from collections.abc import Callable
 
+import numpy as np
 import qutip as qt
 import typer
 from oqd_compiler_infrastructure import CFGBlockAccumulator, RelabelCFGBlocks
@@ -65,7 +66,7 @@ class AnalogREPR:
                 return TQRegElem
             case bool():
                 return TBool
-            case int():
+            case int() | np.int64():
                 return TInt
             case float():
                 return TFloat

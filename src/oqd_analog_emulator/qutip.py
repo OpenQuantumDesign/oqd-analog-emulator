@@ -13,18 +13,20 @@
 # limitations under the License.
 
 
-from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
-from oqd_core.analysis.analog.symbol_table import AnalogSymbolTableBuilder
-from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
-from oqd_core.backend.base import BackendBase
-from oqd_core.backend.program import AnalogProgram
-from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
-from oqd_core.frontend.analog import parse_analog
+# from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
+# from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
+# from oqd_core.backend.base import BackendBase
 
-from oqd_analog_emulator.interpreter import AnalogInterpreter
+# from oqd_core.backend.program import AnalogProgram
+# from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
+# from oqd_core.frontend.analog import parse_analog
+
+# from oqd_analog_emulator.interpreter import AnalogInterpreter
+
 from oqd_analog_emulator.method_table import (
     ArithmeticMixin,
     BoolMixin,
+    FunctionMixin,
     MethodTableBase,
     MethodTableOptionsBase,
     QutipMixin,
@@ -34,7 +36,7 @@ from oqd_analog_emulator.method_table import (
 ########################################################################################
 
 __all__ = [
-    "QutipBackend",
+    # "QutipBackend",
     "QutipMethodTable",
 ]
 
@@ -44,14 +46,19 @@ __all__ = [
 class QutipMethodTableOptions(MethodTableOptionsBase):
     fock_cutoff: int = 4
     dt: float = 1e-2
-    ignore_measurements: bool = False
     singleshot_init: bool = True
+    ignore_measurements: bool = False
+    ignore_jumps: bool = False
+    normalize_state: bool = False
+    verify_normalized: bool = True
+    normalized_tol: float = 1e-5
 
 
 class QutipMethodTable(
     MethodTableBase[QutipMethodTableOptions],
     ArithmeticMixin,
     BoolMixin,
+    FunctionMixin,
     QutipMixin,
     StackStoreMixin,
 ): ...
@@ -60,55 +67,54 @@ class QutipMethodTable(
 ########################################################################################
 
 
-class QutipBackend(BackendBase):
-    """
-    Class representing the Qutip backend
-    """
+# class QutipBackend(BackendBase):
+#     """
+#     Class representing the Qutip backend
+#     """
 
-    def compile(self, program: str):
-        circuit = parse_analog(program)
-        cfg = AnalogCFGBuilder().run(circuit)
-        checker = AnalogTypeChecker(cfg)
+#     def compile(self, program: str):
+#         circuit = parse_analog(program)
+#         cfg = AnalogCFGBuilder().run(circuit)
+#         checker = AnalogTypeChecker(cfg)
 
-        symbol_analysis = AnalogSymbolTableBuilder(cfg, checker.dataflow_result)
-        symbol_table = symbol_analysis.symbol_table
+#         symbol_table = symbol_analysis.symbol_table
 
-        circuit, cfg = compile_analog_circuit(
-            circuit=circuit, cfg=cfg, symbol_table=symbol_table
-        )
+#         circuit, cfg = compile_analog_circuit(
+#             circuit=circuit, cfg=cfg, symbol_table=symbol_table
+#         )
 
-        program = AnalogProgram(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
+#         program = AnalogProgram(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
 
-        return program
+#         return program
 
-    def run(
-        self,
-        program: str | AnalogProgram = None,
-        *,
-        options: QutipMethodTableOptions | None = None,
-        **kwargs,
-    ):
-        """
-        Method to simulate an experiment using the QuTip backend
+#     def run(
+#         self,
+#         program: str | AnalogProgram = None,
+#         *,
+#         options: QutipMethodTableOptions | None = None,
+#         **kwargs,
+#     ):
+#         """
+#         Method to simulate an experiment using the QuTip backend
 
-        Args:
-            program (str | AnalogProgram): Run experiment from valid analog code or AnalogProgram object.
-            options (QutipMethodTableOptions): Options for the qutip method table
-        Returns:
-            Program object, Interpreter object, and the output of the QuTip simulation.
-        """
+#         Args:
+#             program (str | AnalogProgram): Run experiment from valid analog code or AnalogProgram object.
+#             options (QutipMethodTableOptions): Options for the qutip method table
+#         Returns:
+#             Program object, Interpreter object, and the output of the QuTip simulation.
+#         """
 
-        if isinstance(program, str):
-            program = self.compile(program)
+#         if isinstance(program, str):
+#             program = self.compile(program)
 
-        if not isinstance(program, AnalogProgram):
-            raise TypeError("Provide valid analog code or AnalogProgram.")
+#         if not isinstance(program, AnalogProgram):
+#             raise TypeError("Provide valid analog code or AnalogProgram.")
 
-        cfg = program.cfg
+#         cfg = program.cfg
 
-        method_table = QutipMethodTable(options=options, **kwargs)
+#         method_table = QutipMethodTable(options=options, **kwargs)
 
-        interpreter = AnalogInterpreter(method_table=method_table)
-        output = interpreter.run(cfg=cfg)
+#         interpreter = AnalogInterpreter(method_table=method_table)
+#         output = interpreter.run(cfg=cfg)
 
-        return program, interpreter, output
+#         return program, interpreter, output

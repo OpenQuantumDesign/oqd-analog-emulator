@@ -353,7 +353,7 @@ class AnalogInstructionsCodegen(RewriteRule):
 
     def map_Extract(self, model: Extract):
         out = self(model.index)
-        out += self.const(model.access.name)
+        out += self(model.value)
         out += self.op(OpCode.EXTRACT)
         return out
 
