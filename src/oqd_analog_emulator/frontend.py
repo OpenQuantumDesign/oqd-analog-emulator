@@ -38,7 +38,7 @@ from oqd_core.frontend.analog import parse_analog
 
 from oqd_analog_emulator.instructions import ListTerminators
 from oqd_analog_emulator.interpreter import AnalogInterpreter
-from oqd_analog_emulator.method_table import RegisterName
+from oqd_analog_emulator.method_table import QuantumRegisterPointer
 from oqd_analog_emulator.qutip import QutipMethodTable as QutipMethodTable
 
 ########################################################################################
@@ -62,7 +62,7 @@ class AnalogREPR:
 
     def _infer_type(self, value):
         match value:
-            case RegisterName():
+            case QuantumRegisterPointer():
                 return TQRegElem
             case bool():
                 return TBool
@@ -83,7 +83,7 @@ class AnalogREPR:
 
     def _infer_dim(self, value):
         match value:
-            case RegisterName():
+            case QuantumRegisterPointer():
                 return [value.dim]
             case qt.Qobj() | qt.QobjEvo():
                 return value.dims[0]
@@ -92,7 +92,7 @@ class AnalogREPR:
             case list():
                 elem_dim = self._infer_dim(value[1])
                 return [
-                    elem_dim[0] if isinstance(e, RegisterName) else elem_dim
+                    elem_dim[0] if isinstance(e, QuantumRegisterPointer) else elem_dim
                     for e in value
                     if not isinstance(e, ListTerminators)
                 ]
