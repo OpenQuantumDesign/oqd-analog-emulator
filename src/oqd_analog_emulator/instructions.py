@@ -136,27 +136,6 @@ class OpCode(Enum):
     RANGE = auto()  # create a list with a range of values
     FLATTEN = auto()  # Flatten a list of list
 
-    # @property
-    # def num_args(self):
-    #     match self:
-    #         case _ if self is OpCode.QREG:
-    #             return 3
-    #         case _ if self in [OpCode.EXTRACT, OpCode.MREG]:
-    #             return 2
-    #         case _ if self in [
-    #             OpCode.LOAD,
-    #             OpCode.GLOBAL,
-    #             OpCode.FUNC,
-    #             OpCode.CONST,
-    #             OpCode.STORE,
-    #             OpCode.EXTRACT,
-    #             OpCode.MREG,
-    #             OpCode.QREG,
-    #         ]:
-    #             return 1
-    #         case _:
-    #             return 0
-
     @staticmethod
     def from_ast(op):
         match op:
