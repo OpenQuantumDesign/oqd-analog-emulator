@@ -23,6 +23,11 @@
 
 # from oqd_analog_emulator.interpreter import AnalogInterpreter
 
+
+from typing import Any, Dict
+
+from pydantic import Field
+
 from oqd_analog_emulator.method_table import (
     ArithmeticMixin,
     BoolMixin,
@@ -49,9 +54,9 @@ class QutipMethodTableOptions(MethodTableOptionsBase):
     singleshot_init: bool = False
     ignore_measurements: bool = False
     ignore_jumps: bool = False
-    normalize_state: bool = True
     verify_normalized: bool = False
     normalized_tol: float = 1e-5
+    solver_options: Dict[str, Any] = Field(default_factory=dict)
 
 
 class QutipMethodTable(

@@ -550,10 +550,7 @@ class QutipMixin:
                 e_ops={"_verify_normalized": self._verify_normalized}
                 if self.options.verify_normalized
                 else {},
-                options={
-                    "store_states": True,
-                    "normalize_output": self.options.normalize_state,
-                },
+                options=self.options.solver_options,
             )
         else:
             state, ops, reordered_parts = self._pad_qops([H, *Ls], targets)
@@ -569,10 +566,7 @@ class QutipMixin:
                 e_ops={"_verify_normalized": self._verify_normalized}
                 if self.options.verify_normalized
                 else {},
-                options={
-                    "store_states": True,
-                    "normalize_output": self.options.normalize_state,
-                },
+                options=self.options.solver_options,
             )
 
         vm.machine_time += duration
