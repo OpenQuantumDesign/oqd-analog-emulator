@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
-# from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
-# from oqd_core.backend.base import BackendBase
-
-# from oqd_core.backend.program import AnalogProgram
-# from oqd_core.compiler.analog.passes.compile import compile_analog_circuit
-# from oqd_core.frontend.analog import parse_analog
-
-# from oqd_analog_emulator.interpreter import AnalogInterpreter
-
+########################################################################################
 
 from typing import Any, Dict
 
+from oqd_compiler_infrastructure import CFG, CFGBlockAccumulator, RelabelCFGBlocks
+from oqd_core.analysis.analog import AnalogCFGBuilder
+from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
+from oqd_core.analysis.analog.dim_checker import DimensionChecker
+from oqd_core.analysis.analog.reaching_def import AvailableVariableAnalysis
+from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
+from oqd_core.backend import BackendBase
+from oqd_core.frontend.analog import parse_analog
+from oqd_core.interface.analog import AnalogCircuit
 from pydantic import Field
 
+from oqd_analog_emulator.interpreter import AnalogInterpreter
 from oqd_analog_emulator.method_table import (
     ArithmeticMixin,
     BoolMixin,
@@ -71,57 +71,60 @@ class QutipMethodTable(
 ): ...
 
 
-########################################################################################
+#######################################################################################
 
 
-# class QutipBackend(BackendBase):
-#     """
-#     Class representing the Qutip backend
-#     """
+class QutipBackend(BackendBase):
+    """
+    Class representing the Qutip backend
+    """
 
-#     def compile(self, program: str):
-#         circuit = parse_analog(program)
-#         cfg = AnalogCFGBuilder().run(circuit)
-#         checker = AnalogTypeChecker(cfg)
+    def __init__(self):
+        super().__init__()
 
-#         symbol_table = symbol_analysis.symbol_table
+        self.avail_checker = AvailableVariableAnalysis()
+        self.type_checker = AnalogTypeChecker()
+        self.dim_checker = DimensionChecker()
 
-#         circuit, cfg = compile_analog_circuit(
-#             circuit=circuit, cfg=cfg, symbol_table=symbol_table
-#         )
+    def compile(self, program: str | AnalogCircuit):
+        if isinstance(program, str):
+            program = parse_analog(program)
 
-#         program = AnalogProgram(circuit=circuit, cfg=cfg, symbol_table=symbol_table)
+        cfg = AnalogCFGBuilder()(program)
+        cfg = CFGBlockAccumulator()(cfg)
+        cfg = RelabelCFGBlocks()(cfg)
 
-#         return program
+        return cfg
 
-#     def run(
-#         self,
-#         program: str | AnalogProgram = None,
-#         *,
-#         options: QutipMethodTableOptions | None = None,
-#         **kwargs,
-#     ):
-#         """
-#         Method to simulate an experiment using the QuTip backend
+    def run(
+        self,
+        program: str | AnalogCircuit = "",
+        *,
+        options: QutipMethodTableOptions | None = None,
+        **kwargs,
+    ):
+        """
+        Method to simulate an experiment using the QuTip backend
 
-#         Args:
-#             program (str | AnalogProgram): Run experiment from valid analog code or AnalogProgram object.
-#             options (QutipMethodTableOptions): Options for the qutip method table
-#         Returns:
-#             Program object, Interpreter object, and the output of the QuTip simulation.
-#         """
+        Args:
+            program (str | AnalogCircuit): Run experiment from valid analog code or AnalogCircuit object.
+            options (QutipMethodTableOptions): Options for the qutip method table
+        Returns:
+            Output of the QuTip simulation, Program object, CFG object, Interpreter object.
+        """
 
-#         if isinstance(program, str):
-#             program = self.compile(program)
+        if not isinstance(program, str | AnalogCircuit):
+            raise TypeError("Provide valid analog code or AnalogCircuit.")
 
-#         if not isinstance(program, AnalogProgram):
-#             raise TypeError("Provide valid analog code or AnalogProgram.")
+        cfg = self.compile(program)
 
-#         cfg = program.cfg
+        self.avail_checker.analyze(cfg)
+        self.type_checker.analyze(cfg)
+        self.dim_checker.analyze(cfg)
 
-#         method_table = QutipMethodTable(options=options, **kwargs)
+        method_table = QutipMethodTable(options=options, **kwargs)
+        interpreter = AnalogInterpreter(method_table=method_table)
 
-#         interpreter = AnalogInterpreter(method_table=method_table)
-#         output = interpreter.run(cfg=cfg)
+        output = interpreter.run(cfg=cfg)
 
-#         return program, interpreter, output
+        return (output, program, cfg, interpreter)
