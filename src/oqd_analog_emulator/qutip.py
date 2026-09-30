@@ -45,12 +45,12 @@ __all__ = [
 
 class QutipMethodTableOptions(MethodTableOptionsBase):
     fock_cutoff: int = 4
-    dt: float = 1e-2
-    singleshot_init: bool = True
+    dt: float = 1e-3
+    singleshot_init: bool = False
     ignore_measurements: bool = False
     ignore_jumps: bool = False
-    normalize_state: bool = False
-    verify_normalized: bool = True
+    normalize_state: bool = True
+    verify_normalized: bool = False
     normalized_tol: float = 1e-5
 
 

@@ -30,35 +30,33 @@ from oqd_analog_emulator.instructions import AnalogVMNULL, ListTerminators
 ########################################################################################
 
 
-class RegisterName(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
+class QuantumRegisterPointer(BaseModel):
+    model_config = ConfigDict(frozen=True)
 
-    name: str
     index: int
     dim: int
 
     def __hash__(self):
-        return hash((self.name, self.index))
+        return self.index
 
 
 class QuantumRegister(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
 
-    name: List[RegisterName] = []
+    parts: List[QuantumRegisterPointer] = []
     time: float
     time_last_updated: float
-    state: Any
+    state: Any = None
 
     def __hash__(self):
-        return hash(tuple(self.name))
+        return hash(tuple(sorted(self.parts, key=lambda x: x.index)))
 
-    @property
-    def n(self):
-        return len(self.name)
+    def __len__(self):
+        return len(self.parts)
 
     def sort(self):
-        sorted_name = sorted(self.name, key=lambda k: (k.name, k.index))
-        self.permute(sorted_name)
+        sorted_parts = sorted(self.parts, key=lambda x: x.index)
+        self.permute(sorted_parts)
 
         return self
 
@@ -66,12 +64,12 @@ class QuantumRegister(BaseModel):
         match order:
             case list() if all([isinstance(i, int) for i in order]):
                 pass
-            case list() if all([isinstance(i, RegisterName) for i in order]):
-                order = [self.name.index(i) for i in order]
+            case list() if all([isinstance(i, QuantumRegisterPointer) for i in order]):
+                order = [self.parts.index(i) for i in order]
             case _:
-                raise ValueError("Unsupport order for permute in QuantumRegister")
+                raise ValueError("Unsupported order for permute in QuantumRegister")
 
-        self.name = [self.name[i] for i in order]
+        self.parts = [self.parts[i] for i in order]
         self.state = self.state.permute(order)
         return self
 
@@ -148,7 +146,7 @@ class MethodTableBase(Generic[M]):
         MethodTableRegistry.register(cls)
 
     def get_state(self, return_values, vm):
-        if isinstance(return_values, RegisterName):
+        if isinstance(return_values, QuantumRegisterPointer):
             return vm.registers[return_values]
 
         if not isinstance(return_values, list):
@@ -160,7 +158,7 @@ class MethodTableBase(Generic[M]):
                 continue
             if isinstance(value, list):
                 out.append(self.get_state(value, vm))
-            elif isinstance(value, RegisterName):
+            elif isinstance(value, QuantumRegisterPointer):
                 out.append((value, vm.registers[value]))
             else:
                 out.append(value)
@@ -236,18 +234,6 @@ class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
 
 
 class ArithmeticMixin:
-    @staticmethod
-    def _pow(x, y):
-        if not isinstance(x, qt.Qobj):
-            return operator.pow(x, y)
-
-        x_np = x.full()
-
-        res_np = np.linalg.matrix_power(x_np, y)
-
-        res = qt.Qobj(res_np, dims=x.dims)
-        return res
-
     def run_NEG(self, vm):
         arg = self.get_args(num=1, vm=vm)[0]
 
@@ -281,7 +267,7 @@ class ArithmeticMixin:
     def run_POW(self, vm):
         args = left, right = self.get_args(num=2, vm=vm)
 
-        vm.stack.push(_build_callable(ArithmeticMixin._pow, *args))
+        vm.stack.push(_build_callable(operator.pow, *args))
 
     def run_MFUNC(self, vm):
         name = self.get_args(num=1, vm=vm)[0]
@@ -400,9 +386,9 @@ class StackStoreMixin:
 
 
 class QutipMixin:
-    def _new_register(self, name, state, vm):
+    def _new_register(self, parts, state, vm):
         return QuantumRegister(
-            name=name,
+            parts=parts,
             time=vm.machine_time,
             time_last_updated=vm.machine_time,
             state=state,
@@ -416,7 +402,7 @@ class QutipMixin:
         row = np.array([level1, level2])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+        vm.stack.push(qt.Qobj(op))
 
     def run_PX(self, vm):
         level1, level2, dim = self.get_args(num=3, vm=vm)
@@ -426,7 +412,7 @@ class QutipMixin:
         row = np.array([level2, level1])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+        vm.stack.push(qt.Qobj(op))
 
     def run_PY(self, vm):
         level1, level2, dim = self.get_args(num=3, vm=vm)
@@ -436,7 +422,7 @@ class QutipMixin:
         row = np.array([level2, level1])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+        vm.stack.push(qt.Qobj(op))
 
     def run_PZ(self, vm):
         level1, level2, dim = self.get_args(num=3, vm=vm)
@@ -446,7 +432,7 @@ class QutipMixin:
         row = np.array([level1, level2])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op).to(qt.data.Dense))
+        vm.stack.push(qt.Qobj(op))
 
     def run_MI(self, vm):
         dim = self.options.fock_cutoff
@@ -480,30 +466,30 @@ class QutipMixin:
         # Pads the hamiltonian with additional dimensions if required and reorders states
 
     def _pad_qops(self, qops, targets):
-        # unpack names and unique registers
-        qnames, regs = zip(*targets) if isinstance(targets, list) else zip(*[targets])
-        qnames = list(qnames)
+        # unpack parts and unique registers
+        parts, regs = zip(*targets) if isinstance(targets, list) else zip(*[targets])
+        parts = list(parts)
         regs = set(regs)
 
         # extract values from registers
-        regs = tuple((x.name, x.state) for x in regs)
+        regs = tuple((x.parts, x.state) for x in regs)
 
-        # get all names in registers
+        # get all parts in registers
         total_states = [state for (_, state) in regs]
-        total_qnames = [name for (names, _) in regs for name in names]
+        total_parts = [part for (parts, _) in regs for part in parts]
 
-        # get all names not in operators
-        remaining_qnames = [qname for qname in total_qnames if qname not in qnames]
+        # get all parts not in operators
+        remaining_parts = [part for part in total_parts if part not in parts]
 
         # compute padded operators
         padded_qops = [
-            qt.tensor(*[qt.qeye(qname.dim) for qname in remaining_qnames], qop)
+            qt.tensor(*[qt.qeye(part.dim) for part in remaining_parts], qop)
             for qop in qops
         ]
 
-        # Calculate permutation to take total_qnames to padded_qnames
-        padded_qnames = remaining_qnames + qnames
-        permute_order = [total_qnames.index(x) for x in padded_qnames]
+        # Calculate permutation to take total_parts to padded_parts
+        padded_parts = remaining_parts + parts
+        permute_order = [total_parts.index(x) for x in padded_parts]
 
         # Turn all states to dm if any state is dm
         total_states = (
@@ -516,7 +502,7 @@ class QutipMixin:
         total_state = qt.tensor(*total_states)
         total_state = total_state.permute(permute_order)
 
-        return total_state, padded_qops, padded_qnames
+        return total_state, padded_qops, padded_parts
 
     def _verify_normalized(self, t, state):
         if not np.isclose(state.norm(), 1.0, atol=0, rtol=self.options.normalized_tol):
@@ -531,8 +517,8 @@ class QutipMixin:
         targets = args[3]
         targets = targets if isinstance(targets, list) else [targets]
 
-        for name, _ in targets:
-            if vm.registers[name].state is None:
+        for ptr, _ in targets:
+            if vm.registers[ptr].state is None:
                 raise ValueError("Attempted to evolve uninitialized qubit")
 
         tspan = np.arange(0, duration, self.options.dt)
@@ -553,13 +539,13 @@ class QutipMixin:
         ]
 
         if self.options.ignore_jumps or Ls == []:
-            states, ops, reordered_qubits = self._pad_qops([H], targets)
+            state, ops, reordered_parts = self._pad_qops([H], targets)
 
             H = ops[0]
 
-            result_qobj = qt.sesolve(
+            evo_res = qt.sesolve(
                 H,
-                states,
+                state,
                 tspan,
                 e_ops={"_verify_normalized": self._verify_normalized}
                 if self.options.verify_normalized
@@ -570,14 +556,14 @@ class QutipMixin:
                 },
             )
         else:
-            states, ops, reordered_qubits = self._pad_qops([H, *Ls], targets)
+            state, ops, reordered_parts = self._pad_qops([H, *Ls], targets)
 
             H = ops[0]
             Ls = ops[1:]
 
-            result_qobj = qt.mesolve(
+            evo_res = qt.mesolve(
                 H,
-                states,
+                state,
                 tspan,
                 Ls,
                 e_ops={"_verify_normalized": self._verify_normalized}
@@ -592,16 +578,16 @@ class QutipMixin:
         vm.machine_time += duration
 
         qreg = self._new_register(
-            name=reordered_qubits,
-            state=result_qobj.final_state,
+            parts=reordered_parts,
+            state=evo_res.final_state,
             vm=vm,
         ).sort()
 
-        for target in reordered_qubits:
-            vm.registers[target] = qreg
+        for ptr in reordered_parts:
+            vm.registers[ptr] = qreg
 
-        for reg in vm.registers.keys():
-            vm.registers[reg].time = vm.machine_time
+        for ptr in vm.registers.keys():
+            vm.registers[ptr].time = vm.machine_time
 
         vm.stack.push(AnalogVMNULL)
 
@@ -621,7 +607,7 @@ class QutipMixin:
         targets = self.get_args(1, vm)[0]
 
         targets = targets if isinstance(targets, list) else [targets]
-        targets = [name for name, target in targets]
+        targets = [part for part, target in targets]
 
         while targets:
             target = targets[0]
@@ -630,9 +616,9 @@ class QutipMixin:
 
             if current_state is None:
                 vm.registers[target] = self._new_register(
-                    name=vm.registers[target].name,
+                    parts=vm.registers[target].parts,
                     state=qt.basis(
-                        np.prod([t.dim for t in vm.registers[target].name]),
+                        np.prod([t.dim for t in vm.registers[target].parts]),
                         0,
                         dtype=qt.data.CSR,
                     ),
@@ -640,7 +626,7 @@ class QutipMixin:
                 )
                 continue
 
-            system = vm.registers[target].name
+            system = vm.registers[target].parts
             initialized_subsystem = [
                 i for i in range(len(system)) if system[i] in targets
             ]
@@ -648,16 +634,16 @@ class QutipMixin:
                 i for i in range(len(system)) if system[i] not in targets
             ]
 
-            for name in (system[i] for i in initialized_subsystem):
-                vm.registers[name] = self._new_register(
-                    name=[name], state=qt.basis(name.dim, 0, dtype=qt.data.CSR), vm=vm
+            for ptr in (system[i] for i in initialized_subsystem):
+                vm.registers[ptr] = self._new_register(
+                    parts=[ptr], state=qt.basis(ptr.dim, 0, dtype=qt.data.CSR), vm=vm
                 )
 
             new_state = current_state.ptrace(remaining_subsystem)
 
-            for name in (system[i] for i in remaining_subsystem):
-                vm.registers[name] = self._new_register(
-                    name=[system[i] for i in remaining_subsystem],
+            for ptr in (system[i] for i in remaining_subsystem):
+                vm.registers[ptr] = self._new_register(
+                    parts=[system[i] for i in remaining_subsystem],
                     state=new_state,
                     vm=vm,
                 ).sort()
@@ -672,7 +658,7 @@ class QutipMixin:
         vm.stack.push(AnalogVMNULL)
 
     def _projective_measure_single(self, reg, target, vm):
-        remainder = [i for i in reg.name if i != target]
+        remainder = [i for i in reg.parts if i != target]
 
         reg = reg.permute([target] + remainder)
 
@@ -701,7 +687,9 @@ class QutipMixin:
         )
         remainder_state.dims = [remainder_state.dims[0][1:], remainder_state.dims[1]]
 
-        remainder_reg = self._new_register(remainder, remainder_state, vm)
+        remainder_reg = self._new_register(
+            parts=remainder, state=remainder_state, vm=vm
+        )
 
         return outcome, target_state, remainder_reg
 
@@ -709,12 +697,12 @@ class QutipMixin:
         targets = self.get_args(1, vm)[0]
 
         targets = targets if isinstance(targets, list) else [targets]
-        targets = [name for name, target in targets]
+        targets = [ptr for ptr, target in targets]
 
         _targets = targets
 
         outcomes = []
-        outcome_names = []
+        outcome_order = []
         while _targets:
             target = _targets[0]
 
@@ -724,7 +712,7 @@ class QutipMixin:
                 raise ValueError("Attempted to measure uninitialized qubit")
 
             # Calculate measured subsystem and remaining subsystem
-            system = vm.registers[target].name
+            system = vm.registers[target].parts
             measured_subsystem = [i for i in system if i in _targets]
             remaining_subsystem = [i for i in system if i not in _targets]
 
@@ -732,26 +720,26 @@ class QutipMixin:
             reg = reg.permute(measured_subsystem + remaining_subsystem)
 
             while measured_subsystem:
-                name = measured_subsystem.pop(0)
+                ptr = measured_subsystem.pop(0)
 
                 outcome, target_state, reg = self._projective_measure_single(
-                    reg, name, vm
+                    reg, ptr, vm
                 )
 
-                vm.registers[name] = self._new_register(
-                    name=[name], state=target_state, vm=vm
+                vm.registers[ptr] = self._new_register(
+                    parts=[ptr], state=target_state, vm=vm
                 )
 
                 outcomes.append(outcome)
-                outcome_names.append(name)
+                outcome_order.append(ptr)
 
-            for name in remaining_subsystem:
-                vm.registers[name] = reg.sort()
+            for ptr in remaining_subsystem:
+                vm.registers[ptr] = reg.sort()
 
             _targets = [t for t in _targets if t not in system]
 
         reordered_outcomes = [
-            outcomes[i] for i in [outcome_names.index(j) for j in targets]
+            outcomes[i] for i in [outcome_order.index(j) for j in targets]
         ]
 
         vm.stack.push(
@@ -762,7 +750,7 @@ class QutipMixin:
         targets = self.get_args(1, vm)[0]
 
         targets = targets if isinstance(targets, list) else [targets]
-        targets = [name for name, target in targets]
+        targets = [ptr for ptr, target in targets]
 
         _targets = targets
 
@@ -773,9 +761,9 @@ class QutipMixin:
 
             if reg.state is None:
                 vm.registers[target] = self._new_register(
-                    name=vm.registers[target].name,
+                    parts=vm.registers[target].parts,
                     state=qt.basis(
-                        np.prod([t.dim for t in vm.registers[target].name]),
+                        np.prod([ptr.dim for ptr in vm.registers[target].parts]),
                         0,
                         dtype=qt.data.CSR,
                     ),
@@ -784,7 +772,7 @@ class QutipMixin:
                 continue
 
             # Calculate measured subsystem and remaining subsystem
-            system = vm.registers[target].name
+            system = vm.registers[target].parts
             measured_subsystem = [i for i in system if i in _targets]
             remaining_subsystem = [i for i in system if i not in _targets]
 
@@ -792,16 +780,18 @@ class QutipMixin:
             reg = reg.permute(measured_subsystem + remaining_subsystem)
 
             while measured_subsystem:
-                name = measured_subsystem.pop(0)
+                ptr = measured_subsystem.pop(0)
 
-                _, _, reg = self._projective_measure_single(reg, name, vm)
+                _, _, reg = self._projective_measure_single(reg, ptr, vm)
 
-                vm.registers[name] = self._new_register(
-                    name=[name], state=qt.basis(name.dim, 0), vm=vm
+                vm.registers[ptr] = self._new_register(
+                    parts=[ptr],
+                    state=qt.basis(ptr.dim, 0, dtype=qt.data.CSR),
+                    vm=vm,
                 )
 
-            for name in remaining_subsystem:
-                vm.registers[name] = reg.sort()
+            for ptr in remaining_subsystem:
+                vm.registers[ptr] = reg.sort()
 
             _targets = [t for t in _targets if t not in system]
 

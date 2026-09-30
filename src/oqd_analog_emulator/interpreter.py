@@ -32,7 +32,7 @@ from oqd_analog_emulator.method_table import (
     MethodTableOptionsBase,
     MethodTableRegistry,
     QuantumRegister,
-    RegisterName,
+    QuantumRegisterPointer,
 )
 
 ########################################################################################
@@ -92,8 +92,11 @@ class AnalogStack(MutableSequence[Any]):
 
         return out
 
+    def reset(self):
+        self._stack = []
 
-class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
+
+class AnalogRegisters(MutableMapping[QuantumRegisterPointer, QuantumRegister]):
     def __init__(self):
         self._registers = {}
         self._current = 0
@@ -107,18 +110,18 @@ class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
     def __len__(self):
         return len(self._registers)
 
-    def __getitem__(self, key: RegisterName):
-        if not isinstance(key, RegisterName):
+    def __getitem__(self, key: QuantumRegisterPointer):
+        if not isinstance(key, QuantumRegisterPointer):
             raise KeyError(
-                f"Keys of AnalogRegisters should be of type RegisterName, got {type(key).__qualname__}"
+                f"Keys of AnalogRegisters should be of type QuantumRegisterPointer, got {type(key).__qualname__}"
             )
 
         return self._registers[key]
 
-    def __setitem__(self, key: RegisterName, value: QuantumRegister):
-        if not isinstance(key, RegisterName):
+    def __setitem__(self, key: QuantumRegisterPointer, value: QuantumRegister):
+        if not isinstance(key, QuantumRegisterPointer):
             raise KeyError(
-                f"Keys of AnalogRegisters should be of type RegisterName, got {type(key).__qualname__}"
+                f"Keys of AnalogRegisters should be of type QuantumRegisterPointer, got {type(key).__qualname__}"
             )
 
         if not isinstance(value, QuantumRegister):
@@ -128,10 +131,10 @@ class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
 
         self._registers[key] = value
 
-    def __delitem__(self, key: RegisterName):
-        if not isinstance(key, RegisterName):
+    def __delitem__(self, key: QuantumRegisterPointer):
+        if not isinstance(key, QuantumRegisterPointer):
             raise KeyError(
-                f"Keys of AnalogRegisters should be of type RegisterName, got {type(key).__qualname__}"
+                f"Keys of AnalogRegisters should be of type QuantumRegisterPointer, got {type(key).__qualname__}"
             )
 
         del self._registers[key]
@@ -140,27 +143,24 @@ class AnalogRegisters(MutableMapping[RegisterName, QuantumRegister]):
         return self._registers.__iter__()
 
     def create(self, size, dim, t):
-        names = []
+        ptrs = []
         for _ in range(size):
-            name = RegisterName(name="r", index=self._current, dim=dim)
-            self[name] = QuantumRegister(
-                name=[name], time=t, time_last_updated=t, state=None
+            ptr = QuantumRegisterPointer(index=self._current, dim=dim)
+            self[ptr] = QuantumRegister(
+                parts=[ptr], time=t, time_last_updated=t, state=None
             )
-            names.append(name)
+            ptrs.append(ptr)
             self._current += 1
 
-        return names
+        return ptrs
 
-    def wipe(self, names: List[RegisterName]):
-        for name in names:
-            del self[name]
+    def wipe(self, ptrs: List[QuantumRegisterPointer]):
+        for ptr in ptrs:
+            del self[ptr]
 
-    @property
-    def names(self):
-        return set(map(lambda k: k.name, self.keys()))
-
-    def contains_name(self, name):
-        return name in self.names
+    def reset(self):
+        self._current = 0
+        self._registers = {}
 
 
 ########################################################################################
@@ -240,9 +240,9 @@ class AnalogVirtualMachine:
             self.method_table.run(opcode=opcode, args=args, vm=self)
 
     def reset(self):
-        self.stack = AnalogStack()
+        self.stack.reset()
         self.store = {}
-        self.registers = AnalogRegisters()
+        self.registers.reset()
         self.history = {}
 
 
