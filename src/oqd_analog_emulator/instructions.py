@@ -133,8 +133,9 @@ class OpCode(Enum):
     # Func
     MFUNC = auto()  # Math functions
     LEN = auto()  # length of array
-    RANGE = auto()  # create a list with a range of values
+    RANGE = auto()  # Create a list with a range of values
     FLATTEN = auto()  # Flatten a list of list
+    PRINT = auto()  # Print value
 
     @staticmethod
     def from_ast(op):
@@ -195,6 +196,8 @@ class OpCode(Enum):
                 return OpCode.RANGE
             case BuiltinCall(func="flatten"):
                 return OpCode.FLATTEN
+            case BuiltinCall(func="print"):
+                return OpCode.PRINT
         raise ValueError()
 
 
@@ -347,7 +350,7 @@ class AnalogInstructionsCodegen(RewriteRule):
             out += self(arg)
 
         match model.func:
-            case "len" | "flatten":
+            case "len" | "flatten" | "print":
                 out += self.op(OpCode.from_ast(model))
             case "range" if len(model.args) == 1:
                 out.insert(-2, self.const(1, single=True))
@@ -382,16 +385,7 @@ class AnalogInstructionsCodegen(RewriteRule):
                 | "round"
             ):
                 out += self.const(f"${model.func}")
-                out += (
-                    self.op(OpCode.FUNC)
-                    if model.func
-                    in [
-                        "range",
-                        "len",
-                        "flatten",
-                    ]
-                    else self.op(OpCode.MFUNC)
-                )
+                out += self.op(OpCode.MFUNC)
             case _:
                 raise ValueError()
         return out

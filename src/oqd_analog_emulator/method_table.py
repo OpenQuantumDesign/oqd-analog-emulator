@@ -233,6 +233,13 @@ class MethodTableRegistry(metaclass=MetaMethodTableRegistry):
 ########################################################################################
 
 
+class PrintMixin:
+    def run_PRINT(self, vm):
+        arg = self.get_args(num=1, vm=vm)[0]
+
+        print(arg)
+
+
 class ArithmeticMixin:
     def run_NEG(self, vm):
         arg = self.get_args(num=1, vm=vm)[0]
