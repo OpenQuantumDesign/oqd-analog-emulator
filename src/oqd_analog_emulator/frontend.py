@@ -77,9 +77,9 @@ class AnalogREPR:
             case list():
                 return TList[self._infer_type(value[1])]
             case Callable():
-                self._infer_type(value(0, 0))
+                return self._infer_type(value(0, 0))
 
-        raise TypeError()
+        raise TypeError(f"Encountered unsupported type {type(value)}")
 
     def _infer_dim(self, value):
         match value:
