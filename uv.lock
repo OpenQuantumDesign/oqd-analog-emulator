@@ -2555,7 +2555,7 @@ dev = [
 [[package]]
 name = "oqd-compiler-infrastructure"
 version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure?branch=main#e05d772f51591999db5d40552317b32ad46de5e2" }
+source = { git = "https://github.com/openquantumdesign/oqd-compiler-infrastructure#44200c5c94365e376dbeb9600c6dca7f109dd10c" }
 dependencies = [
     { name = "ast-comments" },
     { name = "graphviz" },
@@ -2565,7 +2565,7 @@ dependencies = [
 [[package]]
 name = "oqd-core"
 version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-core?branch=grammar_modification#81e3fec97cc3ae1a19d11827252ebbd866b1c4a3" }
+source = { git = "https://github.com/openquantumdesign/oqd-core?branch=grammar_modification#b45ba3d6e0701efd23190d3c55b79fa072bd069f" }
 dependencies = [
     { name = "antlr4-python3-runtime" },
     { name = "antlr4-tools" },

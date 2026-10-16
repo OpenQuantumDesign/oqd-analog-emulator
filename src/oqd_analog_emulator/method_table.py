@@ -70,6 +70,7 @@ class QuantumRegister(BaseModel):
                 raise ValueError("Unsupported order for permute in QuantumRegister")
 
         self.parts = [self.parts[i] for i in order]
+
         self.state = self.state.permute(order)
         return self
 
@@ -679,14 +680,22 @@ class QutipMixin:
         if remainder == []:
             return outcome, target_state, None
 
-        remainder_state = (
-            qt.tensor(
-                target_state.dag(),
-                *[qt.qeye(i.dim, dtype=qt.data.CSR) for i in remainder],
-            )
-            * new_state
+        proj = qt.tensor(
+            target_state,
+            *[qt.qeye(i.dim, dtype=qt.data.CSR) for i in remainder],
         )
-        remainder_state.dims = [remainder_state.dims[0][1:], remainder_state.dims[1]]
+        if new_state.isket:
+            remainder_state = proj * new_state
+            remainder_state.dims = [
+                remainder_state.dims[0][1:],
+                remainder_state.dims[1],
+            ]
+        else:
+            remainder_state = proj.dag() * new_state * proj
+            remainder_state.dims = [
+                remainder_state.dims[0][1:],
+                remainder_state.dims[1][1:],
+            ]
 
         remainder_reg = self._new_register(
             parts=remainder, state=remainder_state, vm=vm
