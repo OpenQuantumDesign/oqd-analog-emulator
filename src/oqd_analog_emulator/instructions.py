@@ -154,41 +154,41 @@ class OpCode(Enum):
                 return OpCode.MC
             case Identity():
                 return OpCode.MI
-            case Pos():
+            case Pos() | BuiltinCall(func="_pos"):
                 return OpCode.POS
-            case Neg():
+            case Neg() | BuiltinCall(func="_neg"):
                 return OpCode.NEG
-            case Add():
+            case Add() | BuiltinCall(func="_add"):
                 return OpCode.ADD
-            case Sub():
+            case Sub() | BuiltinCall(func="_sub"):
                 return OpCode.SUB
-            case Mul():
+            case Mul() | BuiltinCall(func="_mul"):
                 return OpCode.MUL
-            case Div():
+            case Div() | BuiltinCall(func="_div"):
                 return OpCode.DIV
-            case Pow():
+            case Pow() | BuiltinCall(func="_pow"):
                 return OpCode.POW
-            case Kron():
+            case Kron() | BuiltinCall(func="_kron"):
                 return OpCode.KRON
-            case Not():
+            case Not() | BuiltinCall(func="_not"):
                 return OpCode.NOT
-            case And():
+            case And() | BuiltinCall(func="_and"):
                 return OpCode.AND
-            case Or():
+            case Or() | BuiltinCall(func="_or"):
                 return OpCode.OR
-            case Xor():
+            case Xor() | BuiltinCall(func="_xor"):
                 return OpCode.XOR
-            case Eq():
+            case Eq() | BuiltinCall(func="_eq"):
                 return OpCode.EQ
-            case Neq():
+            case Neq() | BuiltinCall(func="_neq"):
                 return OpCode.NEQ
-            case Lt():
+            case Lt() | BuiltinCall(func="_lt"):
                 return OpCode.LT
-            case Leq():
+            case Leq() | BuiltinCall(func="_leq"):
                 return OpCode.LEQ
-            case Gt():
+            case Gt() | BuiltinCall(func="_gt"):
                 return OpCode.GT
-            case Geq():
+            case Geq() | BuiltinCall(func="_geq"):
                 return OpCode.GEQ
             case BuiltinCall(func="len"):
                 return OpCode.LEN
@@ -346,20 +346,45 @@ class AnalogInstructionsCodegen(RewriteRule):
     def map_BuiltinCall(self, model: BuiltinCall):
         out = self(model.args[-1])
 
-        for arg in reversed(model.args[:-1]):
-            out += self(arg)
-
         match model.func:
-            case "len" | "flatten" | "print":
+            case (
+                "_add"
+                | "_sub"
+                | "_mul"
+                | "_div"
+                | "_pow"
+                | "_kron"
+                | "_eq"
+                | "_neq"
+                | "_lt"
+                | "_leq"
+                | "_gt"
+                | "_geq"
+                | "_and"
+                | "_or"
+                | "_xor"
+            ):
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
+                    out += self.op(OpCode.from_ast(model))
+            case "len" | "flatten" | "print" | "_pos" | "_neg" | "_not":
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
                 out += self.op(OpCode.from_ast(model))
             case "range" if len(model.args) == 1:
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
                 out.insert(-2, self.const(1, single=True))
                 out += self.const(0)
                 out += self.op(OpCode.from_ast(model))
             case "range" if len(model.args) == 2:
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
                 out += self.const(1)
                 out += self.op(OpCode.from_ast(model))
             case "range" if len(model.args) == 3:
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
                 out += self.op(OpCode.from_ast(model))
             case (
                 "abs"
@@ -383,11 +408,16 @@ class AnalogInstructionsCodegen(RewriteRule):
                 | "acosh"
                 | "heaviside"
                 | "round"
+                | "commutator"
+                | "acommutator"
+                | "dag"
             ):
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
                 out += self.const(f"${model.func}")
                 out += self.op(OpCode.MFUNC)
             case _:
-                raise ValueError()
+                raise ValueError("Unsupported Builtin function")
         return out
 
     ########################################################################################

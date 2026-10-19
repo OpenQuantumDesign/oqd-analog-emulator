@@ -212,6 +212,9 @@ class AnalogVirtualMachine:
             "$atanh": np.atanh,
             "$heaviside": lambda x: np.heaviside(x, 1),
             "$round": lambda x: np.round(x).astype(int),
+            "$commutator": lambda x, y: x * y - y * x,
+            "$acommutator": lambda x, y: x * y + y * x,
+            "$dag": lambda x: x.dag(),
             "#t": lambda t, s: t,
             "#s": lambda t, s: s,
         }

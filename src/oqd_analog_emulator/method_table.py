@@ -281,7 +281,7 @@ class ArithmeticMixin:
         name = self.get_args(num=1, vm=vm)[0]
 
         match name:
-            case "$atan2":
+            case "$atan2" | "$commutator" | "$acommutator":
                 args = self.get_args(num=2, vm=vm)
             case _:
                 args = self.get_args(num=1, vm=vm)
