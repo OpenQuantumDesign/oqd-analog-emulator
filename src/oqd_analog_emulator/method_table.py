@@ -402,60 +402,100 @@ class QutipMixin:
             state=state,
         )
 
+    def _resolve_dims(self, dims, target):
+        dims = dims if isinstance(dims, list) else [dims]
+        dims = [d if d > 0 else self.options.fock_cutoff for d in dims]
+
+        if target >= len(dims):
+            raise ValueError("")
+
+        dim = dims[target]
+
+        return dims, dim
+
+    def _create_op(self, op, dims, target):
+        return qt.tensor(
+            *[
+                qt.qeye(d, dtype=qt.data.CSR) if n != target else op
+                for n, d in enumerate(dims)
+            ]
+        )
+
     def run_PI(self, vm):
-        level1, level2, dim = self.get_args(num=3, vm=vm)
+        level1, level2, dims, target = self.get_args(num=4, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
         data = np.ones(2, dtype=np.complex64)
         col = np.array([level1, level2])
         row = np.array([level1, level2])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op))
+        op = qt.Qobj(op)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_PX(self, vm):
-        level1, level2, dim = self.get_args(num=3, vm=vm)
+        level1, level2, dims, target = self.get_args(num=4, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
         data = np.ones(2, dtype=np.complex64)
         col = np.array([level1, level2])
         row = np.array([level2, level1])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op))
+        op = qt.Qobj(op)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_PY(self, vm):
-        level1, level2, dim = self.get_args(num=3, vm=vm)
+        level1, level2, dims, target = self.get_args(num=4, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
         data = np.array([1j, -1j], dtype=np.complex64)
         col = np.array([level1, level2])
         row = np.array([level2, level1])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op))
+        op = qt.Qobj(op)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_PZ(self, vm):
-        level1, level2, dim = self.get_args(num=3, vm=vm)
+        level1, level2, dims, target = self.get_args(num=4, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
         data = np.array([1, -1], dtype=np.complex64)
         col = np.array([level1, level2])
         row = np.array([level1, level2])
 
         op = csr_matrix((data, (row, col)), shape=(dim, dim))
-        vm.stack.push(qt.Qobj(op))
+        op = qt.Qobj(op)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_MI(self, vm):
-        dim = self.options.fock_cutoff
+        dims, target = self.get_args(num=2, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
-        vm.stack.push(qt.qeye(dim, dtype=qt.data.CSR))
+        op = qt.qeye(dim, dtype=qt.data.CSR)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_MA(self, vm):
-        dim = self.options.fock_cutoff
+        dims, target = self.get_args(num=2, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
-        vm.stack.push(qt.destroy(dim, dtype=qt.data.CSR))
+        op = qt.destroy(dim, dtype=qt.data.CSR)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_MC(self, vm):
-        dim = self.options.fock_cutoff
+        dims, target = self.get_args(num=2, vm=vm)
+        dims, dim = self._resolve_dims(dims, target)
 
-        vm.stack.push(qt.create(dim, dtype=qt.data.CSR))
+        op = qt.create(dim, dtype=qt.data.CSR)
+
+        vm.stack.push(self._create_op(op, dims, target))
 
     def run_KRON(self, vm):
         args = self.get_args(2, vm)

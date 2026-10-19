@@ -297,14 +297,18 @@ class AnalogInstructionsCodegen(RewriteRule):
         return self.const(value)
 
     def map_Pauli(self, model: Pauli):
-        out = self(model.dim)
+        out = self(model.target)
+        out += self(model.dims)
         out += self(model.level2)
         out += self(model.level1)
         out += self.op(OpCode.from_ast(model))
         return out
 
     def map_Ladder(self, model: Ladder):
-        return self.op(OpCode.from_ast(model))
+        out = self(model.target)
+        out += self(model.dims)
+        out += self.op(OpCode.from_ast(model))
+        return out
 
     ########################################################################################
 
@@ -456,3 +460,9 @@ class AnalogInstructionsCodegen(RewriteRule):
         out = self(model.targets)
         out += self.op(OpCode.MEASURE)
         return out
+
+    def map_Break(self, model):
+        return AnalogInstructions()
+
+    def map_Continue(self, model):
+        return AnalogInstructions()
