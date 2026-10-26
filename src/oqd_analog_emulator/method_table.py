@@ -839,7 +839,7 @@ class QutipMixin:
             *[qt.qeye(i.dim, dtype=qt.data.CSR) for i in remainder],
         )
         if new_state.isket:
-            remainder_state = proj * new_state
+            remainder_state = proj.dag() * new_state
             remainder_state.dims = [
                 remainder_state.dims[0][1:],
                 remainder_state.dims[1],
