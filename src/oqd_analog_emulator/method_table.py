@@ -568,7 +568,14 @@ class QutipMixin:
             raise ValueError("State not normalized through evolution")
         return
 
-    def _execute_metrics(self, vm):
+    def _get_metric(self, e_op, vm):
+        return (
+            e_op
+            if isinstance(e_op, qt.Qobj)
+            else qt.QobjEvo(lambda t: e_op(t, t - vm.machine_time))
+        )
+
+    def _get_metrics(self, vm):
         compiler = Chain(
             parse_analog, AnalogCFGBuilder(), CFGBlockAccumulator(), RelabelCFGBlocks()
         )
@@ -581,11 +588,7 @@ class QutipMixin:
             e_op = vm._interp.run(e_op)
             targets = vm._interp.run(targets)[0]
 
-            e_op = (
-                e_op
-                if isinstance(e_op, qt.Qobj)
-                else qt.QobjEvo(lambda t: e_op(t, t - vm.machine_time))
-            )
+            e_op = self._get_metric(e_op, vm)
 
             metrics[(k, e_op_str, targets_str)] = (
                 e_op,
@@ -594,10 +597,28 @@ class QutipMixin:
 
         return metrics
 
+    def _evaluate_metrics(self, metrics, vm):
+        metrics_data = {}
+        for k, (e_op, mtargets) in metrics.items():
+            regs = set([vm.registers[part] for part in mtargets])
+            regs = tuple((reg.parts, reg.state) for reg in regs)
+            total_parts = [part for (parts, _) in regs for part in parts]
+            total_states = [state for (_, state) in regs]
+
+            sel = [total_parts.index(part) for part in mtargets if part in total_parts]
+            state = qt.tensor(*total_states)
+
+            metrics_data[k] = qt.expect(
+                e_op if isinstance(e_op, qt.Qobj) else e_op(vm.machine_time),
+                state.ptrace(sel),
+            )
+
+        return metrics_data
+
     def _construct_e_op(self, e_op, total_diff_states, sel):
         def _e_op(t, state):
             _state = qt.tensor(state, *total_diff_states).ptrace(sel)
-            return qt.expect(e_op, _state)
+            return qt.expect(e_op if isinstance(e_op, qt.Qobj) else e_op(t), _state)
 
         return _e_op
 
@@ -605,17 +626,15 @@ class QutipMixin:
         e_ops = {}
         for k, (e_op, mtargets) in metrics.items():
             difference = set(mtargets).difference(targets)
-            total_diff = set([vm.registers[part] for part in difference])
-            total_diff_regs = tuple((reg.parts, reg.state) for reg in total_diff)
-            total_diff_parts = [
-                part for (parts, _) in total_diff_regs for part in parts
-            ]
-            total_diff_states = [state for (_, state) in total_diff_regs]
+            diff_regs = set([vm.registers[part] for part in difference])
+            diff_regs = tuple((reg.parts, reg.state) for reg in diff_regs)
+            diff_parts = [part for (parts, _) in diff_regs for part in parts]
+            diff_states = [state for (_, state) in diff_regs]
 
-            total_parts = [*targets, *total_diff_parts]
+            total_parts = [*targets, *diff_parts]
             sel = [total_parts.index(part) for part in mtargets if part in total_parts]
 
-            e_ops[k] = self._construct_e_op(e_op, total_diff_states, sel)
+            e_ops[k] = self._construct_e_op(e_op, diff_states, sel)
 
         return e_ops
 
@@ -636,7 +655,7 @@ class QutipMixin:
             tspan = np.concat([tspan, [duration]])
         tspan += vm.machine_time
 
-        metrics = self._execute_metrics(vm)
+        metrics = self._get_metrics(vm)
 
         H = (
             hamiltonian
@@ -697,9 +716,6 @@ class QutipMixin:
                         continue
                     vm.registers.update(ptr, "time", vm.machine_time)
 
-        for k, v in evo_res.e_data.items():
-            vm.registers.update_metrics(k, tspan, v)
-
         vm.machine_time = tspan[-1]
         qreg = self._new_register(
             parts=reordered_parts,
@@ -713,6 +729,9 @@ class QutipMixin:
         for ptr in [k for k in vm.registers.keys() if k not in reordered_parts]:
             vm.registers.update(ptr, "time", vm.machine_time)
 
+        for k, v in evo_res.e_data.items():
+            vm.registers.update_metrics(k, tspan[1:], v[1:])
+
         vm.stack.push(AnalogVMNULL)
 
     def run_INIT(self, vm):
@@ -721,11 +740,23 @@ class QutipMixin:
         else:
             self._run_ensemble_INIT(vm)
 
+        metrics = self._get_metrics(vm)
+        metrics_data = self._evaluate_metrics(metrics, vm)
+
+        for k, v in metrics_data.items():
+            vm.registers.update_metrics(k, [vm.machine_time], [v])
+
     def run_MEASURE(self, vm):
         if self.options.ignore_measurements:
             self._run_noop_MEASURE(vm)
         else:
             self._run_singleshot_MEASURE(vm)
+
+        metrics = self._get_metrics(vm)
+        metrics_data = self._evaluate_metrics(metrics, vm)
+
+        for k, v in metrics_data.items():
+            vm.registers.update_metrics(k, [vm.machine_time], [v])
 
     def _run_ensemble_INIT(self, vm):
         targets = self.get_args(1, vm)[0]
