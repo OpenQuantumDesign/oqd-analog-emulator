@@ -103,6 +103,14 @@ class AnalogRegisters(MutableMapping[QuantumRegisterPointer, QuantumRegister]):
         self._history = {}
         self._metrics = {}
 
+    @property
+    def history(self):
+        return self._history
+
+    @property
+    def metrics(self):
+        return self._metrics
+
     def __repr__(self):
         return self._registers.__repr__()
 
@@ -244,8 +252,6 @@ class AnalogVirtualMachine:
         self.registers = AnalogRegisters()
         self.machine_time = 0.0
 
-        self.history = {}
-
         match method_table:
             case str():
                 self.method_table = MethodTableRegistry[method_table](
@@ -269,7 +275,6 @@ class AnalogVirtualMachine:
         self.stack.reset()
         self.store = {}
         self.registers.reset()
-        self.history = {}
 
 
 class AnalogInterpreter:

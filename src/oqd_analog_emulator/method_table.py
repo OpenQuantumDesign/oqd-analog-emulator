@@ -29,6 +29,7 @@ from oqd_compiler_infrastructure import (
     RelabelCFGBlocks,
 )
 from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
+from oqd_core.frontend.analog import parse_analog
 from pydantic import BaseModel, ConfigDict
 from scipy.sparse import csr_matrix
 
@@ -567,13 +568,15 @@ class QutipMixin:
             raise ValueError("State not normalized through evolution")
         return
 
-    def _evaluate_metrics(self, vm):
-        compiler = Chain(AnalogCFGBuilder(), CFGBlockAccumulator(), RelabelCFGBlocks())
+    def _execute_metrics(self, vm):
+        compiler = Chain(
+            parse_analog, AnalogCFGBuilder(), CFGBlockAccumulator(), RelabelCFGBlocks()
+        )
 
         metrics = {}
-        for k, (e_op, targets) in self.options.metrics.items():
-            e_op = compiler(e_op)
-            targets = compiler(targets)
+        for k, (e_op_str, targets_str) in self.options.metrics.items():
+            e_op = compiler(e_op_str)
+            targets = compiler(targets_str)
 
             e_op = vm._interp.run(e_op)
             targets = vm._interp.run(targets)[0]
@@ -584,15 +587,23 @@ class QutipMixin:
                 else qt.QobjEvo(lambda t: e_op(t, t - vm.machine_time))
             )
 
-            metrics[k] = (e_op, targets if isinstance(targets, list) else [targets])
+            metrics[(k, e_op_str, targets_str)] = (
+                e_op,
+                targets if isinstance(targets, list) else [targets],
+            )
 
         return metrics
+
+    def _construct_e_op(self, e_op, total_diff_states, sel):
+        def _e_op(t, state):
+            _state = qt.tensor(state, *total_diff_states).ptrace(sel)
+            return qt.expect(e_op, _state)
+
+        return _e_op
 
     def _construct_e_ops(self, metrics, targets, vm):
         e_ops = {}
         for k, (e_op, mtargets) in metrics.items():
-            overlap = set(mtargets).intersection(targets)
-
             difference = set(mtargets).difference(targets)
             total_diff = set([vm.registers[part] for part in difference])
             total_diff_regs = tuple((reg.parts, reg.state) for reg in total_diff)
@@ -604,11 +615,7 @@ class QutipMixin:
             total_parts = [*targets, *total_diff_parts]
             sel = [total_parts.index(part) for part in mtargets if part in total_parts]
 
-            def _e_op(t, state):
-                _state = qt.tensor(state, *total_diff_states).ptrace(sel)
-                return qt.expect(e_op, _state)
-
-            e_ops[k] = _e_op
+            e_ops[k] = self._construct_e_op(e_op, total_diff_states, sel)
 
         return e_ops
 
@@ -629,7 +636,7 @@ class QutipMixin:
             tspan = np.concat([tspan, [duration]])
         tspan += vm.machine_time
 
-        metrics = self._evaluate_metrics(vm)
+        metrics = self._execute_metrics(vm)
 
         H = (
             hamiltonian

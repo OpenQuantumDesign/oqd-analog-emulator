@@ -49,6 +49,11 @@ __all__ = [
 ########################################################################################
 
 
+def _verify_analog(s):
+    parse_analog(s)
+    return s
+
+
 class QutipMethodTableOptions(MethodTableOptionsBase):
     fock_cutoff: int = 4
     dt: float = 1e-3
@@ -61,8 +66,8 @@ class QutipMethodTableOptions(MethodTableOptionsBase):
     metrics: Dict[
         str,
         Tuple[
-            Annotated[AnalogCircuit, BeforeValidator(parse_analog)],
-            Annotated[AnalogCircuit, BeforeValidator(parse_analog)],
+            Annotated[str, BeforeValidator(_verify_analog)],
+            Annotated[str, BeforeValidator(_verify_analog)],
         ],
     ] = Field(default_factory=dict)
     solver_options: Dict[str, Any] = Field(default_factory=dict)
