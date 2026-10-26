@@ -22,10 +22,20 @@ from typing import Any, Generic, List, TypeVar
 
 import numpy as np
 import qutip as qt
+from oqd_compiler_infrastructure import (
+    CFG,
+    CFGBlockAccumulator,
+    Chain,
+    RelabelCFGBlocks,
+)
+from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
 from pydantic import BaseModel, ConfigDict
 from scipy.sparse import csr_matrix
 
-from oqd_analog_emulator.instructions import AnalogVMNULL, ListTerminators
+from oqd_analog_emulator.instructions import (
+    AnalogVMNULL,
+    ListTerminators,
+)
 
 ########################################################################################
 
@@ -148,7 +158,7 @@ class MethodTableBase(Generic[M]):
 
     def get_state(self, return_values, vm):
         if isinstance(return_values, QuantumRegisterPointer):
-            return vm.registers[return_values]
+            return (return_values, vm.registers[return_values])
 
         if not isinstance(return_values, list):
             return return_values
@@ -557,6 +567,51 @@ class QutipMixin:
             raise ValueError("State not normalized through evolution")
         return
 
+    def _evaluate_metrics(self, vm):
+        compiler = Chain(AnalogCFGBuilder(), CFGBlockAccumulator(), RelabelCFGBlocks())
+
+        metrics = {}
+        for k, (e_op, targets) in self.options.metrics.items():
+            e_op = compiler(e_op)
+            targets = compiler(targets)
+
+            e_op = vm._interp.run(e_op)
+            targets = vm._interp.run(targets)[0]
+
+            e_op = (
+                e_op
+                if isinstance(e_op, qt.Qobj)
+                else qt.QobjEvo(lambda t: e_op(t, t - vm.machine_time))
+            )
+
+            metrics[k] = (e_op, targets if isinstance(targets, list) else [targets])
+
+        return metrics
+
+    def _construct_e_ops(self, metrics, targets, vm):
+        e_ops = {}
+        for k, (e_op, mtargets) in metrics.items():
+            overlap = set(mtargets).intersection(targets)
+
+            difference = set(mtargets).difference(targets)
+            total_diff = set([vm.registers[part] for part in difference])
+            total_diff_regs = tuple((reg.parts, reg.state) for reg in total_diff)
+            total_diff_parts = [
+                part for (parts, _) in total_diff_regs for part in parts
+            ]
+            total_diff_states = [state for (_, state) in total_diff_regs]
+
+            total_parts = [*targets, *total_diff_parts]
+            sel = [total_parts.index(part) for part in mtargets if part in total_parts]
+
+            def _e_op(t, state):
+                _state = qt.tensor(state, *total_diff_states).ptrace(sel)
+                return qt.expect(e_op, _state)
+
+            e_ops[k] = _e_op
+
+        return e_ops
+
     def run_EVOLVE(self, vm):
         args = self.get_args(4, vm)
         hamiltonian = args[0]
@@ -574,6 +629,8 @@ class QutipMixin:
             tspan = np.concat([tspan, [duration]])
         tspan += vm.machine_time
 
+        metrics = self._evaluate_metrics(vm)
+
         H = (
             hamiltonian
             if isinstance(hamiltonian, qt.Qobj)
@@ -585,40 +642,58 @@ class QutipMixin:
             else qt.QobjEvo(lambda t: jump(t, t - vm.machine_time))
             for jump in jumps
         ]
+        state, ops, reordered_parts = self._pad_qops([H, *Ls], targets)
+
+        H = ops[0]
+        Ls = ops[1:]
+        e_ops = self._construct_e_ops(metrics, reordered_parts, vm)
+
+        if self.options.verify_normalized:
+            e_ops.update({"_verify_normalized": self._verify_normalized})
 
         if self.options.ignore_jumps or Ls == []:
-            state, ops, reordered_parts = self._pad_qops([H], targets)
-
-            H = ops[0]
-
             evo_res = qt.sesolve(
                 H,
                 state,
                 tspan,
-                e_ops={"_verify_normalized": self._verify_normalized}
-                if self.options.verify_normalized
-                else {},
+                e_ops=e_ops,
                 options=self.options.solver_options,
             )
         else:
-            state, ops, reordered_parts = self._pad_qops([H, *Ls], targets)
-
-            H = ops[0]
-            Ls = ops[1:]
-
             evo_res = qt.mesolve(
                 H,
                 state,
                 tspan,
                 Ls,
-                e_ops={"_verify_normalized": self._verify_normalized}
-                if self.options.verify_normalized
-                else {},
+                e_ops=e_ops,
                 options=self.options.solver_options,
             )
 
-        vm.machine_time += duration
+        if self.options.solver_options.get("store_states", None):
+            for n, state in enumerate(evo_res.states[1:-1]):
+                if tspan[n + 1] - vm.machine_time < self.options.intermediate_step:
+                    continue
 
+                vm.machine_time = tspan[n + 1]
+
+                qreg = self._new_register(
+                    parts=reordered_parts,
+                    state=state,
+                    vm=vm,
+                ).sort()
+
+                for ptr in reordered_parts:
+                    vm.registers[ptr] = qreg
+
+                for ptr in [k for k in vm.registers.keys() if k not in reordered_parts]:
+                    if ptr in reordered_parts:
+                        continue
+                    vm.registers.update(ptr, "time", vm.machine_time)
+
+        for k, v in evo_res.e_data.items():
+            vm.registers.update_metrics(k, tspan, v)
+
+        vm.machine_time = tspan[-1]
         qreg = self._new_register(
             parts=reordered_parts,
             state=evo_res.final_state,
@@ -628,8 +703,8 @@ class QutipMixin:
         for ptr in reordered_parts:
             vm.registers[ptr] = qreg
 
-        for ptr in vm.registers.keys():
-            vm.registers[ptr].time = vm.machine_time
+        for ptr in [k for k in vm.registers.keys() if k not in reordered_parts]:
+            vm.registers.update(ptr, "time", vm.machine_time)
 
         vm.stack.push(AnalogVMNULL)
 
@@ -666,6 +741,7 @@ class QutipMixin:
                     ),
                     vm=vm,
                 )
+                targets = [t for t in targets if t != target]
                 continue
 
             system = vm.registers[target].parts
@@ -819,6 +895,7 @@ class QutipMixin:
                     ),
                     vm=vm,
                 )
+                targets = [t for t in targets if t != target]
                 continue
 
             # Calculate measured subsystem and remaining subsystem

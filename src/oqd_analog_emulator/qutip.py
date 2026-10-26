@@ -14,7 +14,7 @@
 
 ########################################################################################
 
-from typing import Any, Dict
+from typing import Annotated, Any, Dict, Tuple
 
 from oqd_compiler_infrastructure import CFG, CFGBlockAccumulator, RelabelCFGBlocks
 from oqd_core.analysis.analog import AnalogCFGBuilder
@@ -25,7 +25,7 @@ from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
 from oqd_core.backend import BackendBase
 from oqd_core.frontend.analog import parse_analog
 from oqd_core.interface.analog import AnalogCircuit
-from pydantic import Field
+from pydantic import BeforeValidator, Field, field_validator
 
 from oqd_analog_emulator.interpreter import AnalogInterpreter
 from oqd_analog_emulator.method_table import (
@@ -57,7 +57,21 @@ class QutipMethodTableOptions(MethodTableOptionsBase):
     ignore_jumps: bool = False
     verify_normalized: bool = False
     normalized_tol: float = 1e-5
+    intermediate_step: float = 1e-2
+    metrics: Dict[
+        str,
+        Tuple[
+            Annotated[AnalogCircuit, BeforeValidator(parse_analog)],
+            Annotated[AnalogCircuit, BeforeValidator(parse_analog)],
+        ],
+    ] = Field(default_factory=dict)
     solver_options: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("solver_options", mode="before")
+    @classmethod
+    def _verify_solver_options(cls, value):
+        value["store_final_state"] = True
+        return value
 
 
 class QutipMethodTable(

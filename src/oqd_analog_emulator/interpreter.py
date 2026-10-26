@@ -100,6 +100,8 @@ class AnalogRegisters(MutableMapping[QuantumRegisterPointer, QuantumRegister]):
     def __init__(self):
         self._registers = {}
         self._current = 0
+        self._history = {}
+        self._metrics = {}
 
     def __repr__(self):
         return self._registers.__repr__()
@@ -131,6 +133,8 @@ class AnalogRegisters(MutableMapping[QuantumRegisterPointer, QuantumRegister]):
 
         self._registers[key] = value
 
+        self._history[key].append(self._registers[key])
+
     def __delitem__(self, key: QuantumRegisterPointer):
         if not isinstance(key, QuantumRegisterPointer):
             raise KeyError(
@@ -142,10 +146,28 @@ class AnalogRegisters(MutableMapping[QuantumRegisterPointer, QuantumRegister]):
     def __iter__(self):
         return self._registers.__iter__()
 
+    def update(self, key, attr, value):
+        if not isinstance(key, QuantumRegisterPointer):
+            raise KeyError(
+                f"Keys of AnalogRegisters should be of type QuantumRegisterPointer, got {type(key).__qualname__}"
+            )
+
+        setattr(self._registers[key], attr, value)
+
+        self._history[key].append(self._registers[key].model_copy(deep=True))
+
+    def update_metrics(self, key, ts, values):
+        if self._metrics.get(key, None) is None:
+            self._metrics[key] = []
+
+        self._metrics[key].extend(zip(ts, values))
+
     def create(self, size, dim, t):
         ptrs = []
         for _ in range(size):
             ptr = QuantumRegisterPointer(index=self._current, dim=dim)
+            self._history[ptr] = []
+
             self[ptr] = QuantumRegister(
                 parts=[ptr], time=t, time_last_updated=t, state=None
             )
@@ -189,6 +211,7 @@ class AnalogVirtualMachine:
         options: MethodTableOptionsBase | None = None,
         **kwargs,
     ):
+        self._interp = None
         self.stack = AnalogStack()
         self.store = {
             "$abs": np.abs,
@@ -260,6 +283,7 @@ class AnalogInterpreter:
         self.vm = AnalogVirtualMachine(
             method_table=method_table, options=options, **kwargs
         )
+        self.vm._interp = self
         self.codegen = AnalogInstructionsCodegen()
 
     def evaluate(self, stmt):
