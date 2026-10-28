@@ -586,13 +586,14 @@ class QutipMixin:
             targets = compiler(targets_str)
 
             e_op = vm._interp.run(e_op)
-            targets = vm._interp.run(targets)[0]
+            targets = vm._interp.run(targets)
+            targets = targets if isinstance(targets, list) else [targets]
 
             e_op = self._get_metric(e_op, vm)
 
             metrics[(k, e_op_str, targets_str)] = (
                 e_op,
-                targets if isinstance(targets, list) else [targets],
+                [t[0] for t in targets],
             )
 
         return metrics
