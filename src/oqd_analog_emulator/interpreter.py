@@ -15,7 +15,7 @@
 
 from collections.abc import MutableMapping, MutableSequence
 from functools import wraps
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import numpy as np
 import qutip as qt
@@ -96,12 +96,47 @@ class AnalogStack(MutableSequence[Any]):
         self._stack = []
 
 
+class AnalogMetrics(MutableMapping[Tuple[str, str, str], List[Tuple[float, Any]]]):
+    def __init__(self):
+        self._metrics = {}
+
+    def __len__(self):
+        return len(self._metrics)
+
+    def _get_key(self, key):
+        match key:
+            case str():
+                return next(filter(lambda k: k[0] == key, self.keys()))
+            case (str(), str(), str()):
+                return key
+            case _:
+                raise TypeError(f"Unsupported key {key} for AnalogMetrics")
+
+    def __getitem__(self, key):
+        key = self._get_key(key)
+
+        return self._metrics[key]
+
+    def __setitem__(self, key, value):
+        key = self._get_key(key)
+
+        self._metrics[key] = value
+
+    def __delitem__(self, key):
+        key = self._get_key(key)
+
+        del self._metrics[key]
+
+    def __iter__(self):
+        return self._metrics.__iter__()
+
+
 class AnalogRegisters(MutableMapping[QuantumRegisterPointer, QuantumRegister]):
     def __init__(self):
         self._registers = {}
         self._current = 0
         self._history = {}
-        self._metrics = {}
+        self._metrics = AnalogMetrics()
 
     @property
     def history(self):
@@ -222,6 +257,8 @@ class AnalogVirtualMachine:
         self._interp = None
         self.stack = AnalogStack()
         self.store = {
+            "$min": lambda x, y: np.min([x, y]),
+            "$max": lambda x, y: np.max([x, y]),
             "$abs": np.abs,
             "$real": np.real,
             "$imag": np.imag,
@@ -241,7 +278,7 @@ class AnalogVirtualMachine:
             "$asinh": np.asinh,
             "$acosh": np.acosh,
             "$atanh": np.atanh,
-            "$heaviside": lambda x: np.heaviside(x, 1),
+            "$heaviside": np.heaviside,
             "$round": lambda x: np.round(x).astype(int),
             "$commutator": lambda x, y: x * y - y * x,
             "$acommutator": lambda x, y: x * y + y * x,

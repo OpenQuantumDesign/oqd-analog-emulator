@@ -390,8 +390,21 @@ class AnalogInstructionsCodegen(RewriteRule):
                 for arg in reversed(model.args[:-1]):
                     out += self(arg)
                 out += self.op(OpCode.from_ast(model))
+            case "heaviside" if len(model.args) == 1:
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
+                out += self.const(1)
+                out += self.const(f"${model.func}")
+                out += self.op(OpCode.MFUNC)
+            case "heaviside" if len(model.args) == 2:
+                for arg in reversed(model.args[:-1]):
+                    out += self(arg)
+                out += self.const(f"${model.func}")
+                out += self.op(OpCode.MFUNC)
             case (
-                "abs"
+                "min"
+                | "max"
+                | "abs"
                 | "real"
                 | "imag"
                 | "conj"
@@ -410,7 +423,6 @@ class AnalogInstructionsCodegen(RewriteRule):
                 | "atanh"
                 | "asinh"
                 | "acosh"
-                | "heaviside"
                 | "round"
                 | "commutator"
                 | "acommutator"
