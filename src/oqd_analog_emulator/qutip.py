@@ -70,7 +70,9 @@ class QutipMethodTableOptions(MethodTableOptionsBase):
             Annotated[str, BeforeValidator(_verify_analog)],
         ],
     ] = Field(default_factory=dict)
-    solver_options: Dict[str, Any] = Field(default_factory=dict)
+    solver_options: Dict[str, Any] = Field(
+        default_factory=lambda: dict(store_final_state=True)
+    )
 
     @field_validator("solver_options", mode="before")
     @classmethod

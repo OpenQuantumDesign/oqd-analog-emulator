@@ -269,6 +269,13 @@ class AnalogInstructionsCodegen(RewriteRule):
         return out
 
     def map_Declaration(self, model: Declaration):
+        if (
+            model.name
+            and isinstance(model.value, Access)
+            and model.value.name == model.name
+        ):
+            return AnalogInstructions()
+
         out = self.const(model.name)
         out += self.op(OpCode.GLOBAL)
         out += (
