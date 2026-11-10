@@ -213,6 +213,28 @@ def test_bell_state_standard(bell_state_standard_protocol):
     assert abs(results.metrics["Z^1"][-1] - 0) <= 0.001
 
 
+def test_expectation_of_operator_sum():
+    z0, z1 = Z @ PI, PI @ Z
+    circuit = AnalogCircuit()
+    circuit.evolve(duration=1, gate=AnalogGate(hamiltonian=z0))
+    args = TaskArgsAnalog(
+        n_shots=10,
+        fock_cutoff=4,
+        metrics={
+            "Z0": Expectation(operator=z0),
+            "Z1": Expectation(operator=z1),
+            "sum": Expectation(operator=z0 + z1),
+        },
+        dt=0.1,
+    )
+
+    results = QutipBackend().run(task=Task(program=circuit, args=args))
+
+    assert results.metrics["Z0"][0] == pytest.approx(1.0)
+    assert results.metrics["Z1"][0] == pytest.approx(1.0)
+    assert results.metrics["sum"][0] == pytest.approx(2.0)
+
+
 def test_ghz_state(three_qubit_GHz_protocol):
     """Standard GHz State preparation"""
 
