@@ -83,7 +83,7 @@ class QutipMetricConversion(ConversionRule):
             if idx == 0:
                 op_exp = coefficient * operator[0]
             else:
-                op_exp + coefficient * operator[0]
+                op_exp = op_exp + coefficient * operator[0]
 
         return lambda t, psi: qt.expect(op_exp, psi)
 
