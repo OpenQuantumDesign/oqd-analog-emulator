@@ -2565,7 +2565,7 @@ dependencies = [
 [[package]]
 name = "oqd-core"
 version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-core?branch=grammar_modification#ad833a2efda40f9a6d3b1861957eb1f38829ab95" }
+source = { git = "https://github.com/openquantumdesign/oqd-core?branch=grammar_modification#a804f848aa451f813bf41eba16de10418aefb643" }
 dependencies = [
     { name = "antlr4-python3-runtime" },
     { name = "antlr4-tools" },
