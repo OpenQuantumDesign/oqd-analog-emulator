@@ -16,8 +16,18 @@
 
 from typing import Annotated, Any, Dict, Tuple
 
-from oqd_compiler_infrastructure import CFG, CFGBlockAccumulator, RelabelCFGBlocks
-from oqd_core.analysis.analog import AnalogCFGBuilder
+from oqd_compiler_infrastructure import (
+    CFG,
+    CFGBlockAccumulator,
+    FixedPoint,
+    InplacePre,
+    RelabelCFGBlocks,
+)
+from oqd_core.analysis.analog import (
+    AnalogCFGBuilder,
+    ConstantFolding,
+    ConstantFoldingRule,
+)
 from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
 from oqd_core.analysis.analog.dim_checker import DimensionChecker
 from oqd_core.analysis.analog.reaching_def import AvailableVariableAnalysis
@@ -112,6 +122,13 @@ class QutipBackend(BackendBase):
             program = parse_analog(program)
 
         cfg = AnalogCFGBuilder()(program)
+
+        fold_checker = ConstantFolding()
+        fold_res = fold_checker.analyze(cfg)
+        fold_pass = FixedPoint(InplacePre(ConstantFoldingRule(fold_res=fold_res)))
+
+        fold_pass(cfg)
+
         cfg = CFGBlockAccumulator()(cfg)
         cfg = RelabelCFGBlocks()(cfg)
 
