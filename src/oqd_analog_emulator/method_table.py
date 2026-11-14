@@ -613,7 +613,8 @@ class QutipMixin:
             total_parts = [part for (parts, _) in regs for part in parts]
             total_states = [state for (_, state) in regs]
 
-            sel = [total_parts.index(part) for part in mtargets if part in total_parts]
+            sel = [total_parts.index(part) for part in mtargets]
+            order = np.argsort(np.argsort(sel)).tolist()
             state = (
                 qt.tensor(*total_states)
                 if all([s is not None for s in total_states])
@@ -623,7 +624,7 @@ class QutipMixin:
             metrics_data[k] = (
                 qt.expect(
                     e_op if isinstance(e_op, qt.Qobj) else e_op(vm.machine_time),
-                    state.ptrace(sel),
+                    state.ptrace(sel).permute(order),
                 )
                 if state
                 else np.nan
@@ -632,11 +633,14 @@ class QutipMixin:
         return metrics_data
 
     def _construct_e_op(self, e_op, total_diff_states, sel):
+        order = np.argsort(np.argsort(sel)).tolist()
+
         def _e_op(t, state):
             if any([s is None for s in total_diff_states]):
                 return np.nan
 
-            _state = qt.tensor(state, *total_diff_states).ptrace(sel)
+            _state = qt.tensor(state, *total_diff_states).ptrace(sel).permute(order)
+
             return qt.expect(e_op if isinstance(e_op, qt.Qobj) else e_op(t), _state)
 
         return _e_op
