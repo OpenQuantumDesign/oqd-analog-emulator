@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires      = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 
 [project]
 name = "oqd-analog-emulator"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "Apache 2.0" }
@@ -43,24 +43,19 @@ docs = [
   "mkdocstrings",
   "mkdocs-material",
   "mkdocstrings-python",
-  "mdx_truly_sane_lists"
+  "mdx_truly_sane_lists",
 ]
-test = [
-  "pytest"
-]
+test = ["pytest"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where   = ["src"]
 include = ["oqd_analog_emulator*"]
 
 [dependency-groups]
-dev = [
-    "pre-commit>=4.1.0",
-    "ruff>=0.9.7",
-]
+dev = ["pre-commit>=4.1.0", "ruff>=0.9.7"]
 
 
 [project.urls]
-Homepage = "https://github.com/OpenQuantumDesign/oqd-analog-emulator"
+Homepage   = "https://github.com/OpenQuantumDesign/oqd-analog-emulator"
 Repository = "https://github.com/OpenQuantumDesign/oqd-analog-emulator.git"
-Issues = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
+Issues     = "https://github.com/OpenQuantumDesign/oqd-analog-emulator/issues"
