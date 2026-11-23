@@ -34,7 +34,7 @@ dependencies = [
   "filelock",
   "setuptools",
   "oqd-compiler-infrastructure@git+https://github.com/openquantumdesign/oqd-compiler-infrastructure",
-  "oqd-core@git+https://github.com/openquantumdesign/oqd-core",
+  "oqd-core",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +50,9 @@ test = ["pytest"]
 [tool.setuptools.packages.find]
 where   = ["src"]
 include = ["oqd_analog_emulator*"]
+
+[tool.uv.sources]
+oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", tag = "v0.2.0-release" }
 
 [dependency-groups]
 dev = ["pre-commit>=4.1.0", "ruff>=0.9.7"]
