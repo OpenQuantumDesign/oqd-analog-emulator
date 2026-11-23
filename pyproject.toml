@@ -61,15 +61,10 @@ fixable = ["ALL"]
 
 [tool.uv.sources]
 oqd-dataschema = { git = "https://github.com/openquantumdesign/oqd-dataschema" }
-oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", branch = "grammar_modification" }
+oqd-core = { git = "https://github.com/openquantumdesign/oqd-core", branch = "v1.0" }
 
 [dependency-groups]
-dev = [
-    "jupyter>=1.1.1",
-    "pre-commit>=4.1.0",
-    "rich>=15.0.0",
-    "ruff>=0.9.7",
-]
+dev = ["jupyter>=1.1.1", "pre-commit>=4.1.0", "rich>=15.0.0", "ruff>=0.9.7"]
 
 
 [project.urls]

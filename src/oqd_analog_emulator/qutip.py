@@ -23,18 +23,17 @@ from oqd_compiler_infrastructure import (
     InplacePre,
     RelabelCFGBlocks,
 )
-from oqd_core.analysis.analog import (
+from oqd_core.analog import (
     AnalogCFGBuilder,
+    AnalogCircuit,
+    AnalogTypeChecker,
+    AvailableVariableAnalysis,
     ConstantFolding,
     ConstantFoldingRule,
+    DimensionChecker,
+    parse_analog,
 )
-from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
-from oqd_core.analysis.analog.dim_checker import DimensionChecker
-from oqd_core.analysis.analog.reaching_def import AvailableVariableAnalysis
-from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
 from oqd_core.backend import BackendBase
-from oqd_core.frontend.analog import parse_analog
-from oqd_core.interface.analog import AnalogCircuit
 from pydantic import BeforeValidator, Field, field_validator
 
 from oqd_analog_emulator.interpreter import AnalogInterpreter

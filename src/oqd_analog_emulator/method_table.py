@@ -28,8 +28,7 @@ from oqd_compiler_infrastructure import (
     Chain,
     RelabelCFGBlocks,
 )
-from oqd_core.analysis.analog.cfg import AnalogCFGBuilder
-from oqd_core.frontend.analog import parse_analog
+from oqd_core.analog import AnalogCFGBuilder, parse_analog
 from pydantic import BaseModel, ConfigDict
 from scipy.sparse import csr_matrix
 

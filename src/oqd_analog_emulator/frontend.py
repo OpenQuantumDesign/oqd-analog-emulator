@@ -21,7 +21,7 @@ import numpy as np
 import qutip as qt
 import typer
 from oqd_compiler_infrastructure import CFGBlockAccumulator, RelabelCFGBlocks
-from oqd_core.analysis.analog import AnalogCFGBuilder
+from oqd_core.analog import AnalogCFGBuilder, parse_analog
 from oqd_core.analysis.analog.dim_checker import DimensionChecker, DInvalid
 from oqd_core.analysis.analog.reaching_def import AvailableVariableAnalysis
 from oqd_core.analysis.analog.type_checker import AnalogTypeChecker
@@ -34,7 +34,6 @@ from oqd_core.analysis.analog.types import (
     TOp,
     TQRegElem,
 )
-from oqd_core.frontend.analog import parse_analog
 
 from oqd_analog_emulator.instructions import ListTerminators
 from oqd_analog_emulator.interpreter import AnalogInterpreter
