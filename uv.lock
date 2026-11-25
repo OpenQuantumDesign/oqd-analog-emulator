@@ -2564,8 +2564,8 @@ dependencies = [
 
 [[package]]
 name = "oqd-core"
-version = "0.1.0"
-source = { git = "https://github.com/openquantumdesign/oqd-core?branch=v1.0#bb64d99adad6e456e0f867722ca8dd26adc244c1" }
+version = "1.0.0"
+source = { git = "https://github.com/openquantumdesign/oqd-core?branch=v1.0#0133c6c5d40b6694ac6aa948803d4e7ecfd87ec0" }
 dependencies = [
     { name = "antlr4-python3-runtime" },
     { name = "antlr4-tools" },
