@@ -39,12 +39,15 @@ class RegisterGroup(GroupBase):
             timestamp=str(datetime.datetime.now(datetime.timezone.utc))
         )
     )
-    # document: Dict[str, CastDataset]
     reg_name: Folder
     parts: Folder
     state: Dataset
     time: Dataset
     time_last_updated: Dataset
+
+class MetricGroup(GroupBase):
+    key: Folder
+    value: Dataset
 
 def create_reg_group(reg_name, parts, state, time, time_last_updated):
     creation_time = datetime.now()
@@ -92,10 +95,35 @@ def create_reg_group(reg_name, parts, state, time, time_last_updated):
     )
     return registers_group
 
+def create_metric_group(key, value):
+    metrics_group = MetricGroup(
+        key = Folder(
+            document_schema=dict(
+                name="str",
+                operator="str",
+                target="str",
+            ),
+            data=np.array(
+                [key],
+                dtype = np.dtype(
+                    [
+                        ("name", np.dtype("<U10")),
+                        ("operator", np.dtype("<U10")),
+                        ("target", np.dtype("<U10")),
+                    ]
+                ),
+            ),
+        ),
+        value = Dataset(
+            data=np.array(value, dtype=np.float64),
+        ),
+    )
+    return metrics_group
+
 def write_to_hdf5(register, _store):
     _registers = register._registers
-    _history = register._history
-    _metrics = register._metrics
+    _history = register.history
+    _metrics = register.metrics
 
     n = 0
     groups = {}
@@ -117,12 +145,20 @@ def write_to_hdf5(register, _store):
         groups[var_name] = create_reg_group(reg_name=[k.index, k.dim], parts=temp_parts, state=state, time=v.time, time_last_updated=v.time_last_updated)
         n += 1
     
+    
+    n = 0
+
+    for k, v in _metrics.items():
+        print("key: ", k)
+        print("value: ", v)
+        var_name = f"metric_{n}"
+        groups[var_name] = create_metric_group(k, v)
+        n += 1
+    
     store = Datastore(groups=groups)
     
-    # print(store)
-
-    
-    print("metrics: ", _metrics)
+    # print("metrics: ", _metrics)
+    # print(len(_metrics))
     # print("history: ", _history)
 
     
