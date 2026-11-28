@@ -17,22 +17,15 @@ from datetime import datetime
 
 import numpy as np
 from oqd_dataschema import (
-    Attrs,
     Dataset,
     Datastore,
     Folder,
     GroupBase,
     unstructured_to_structured,
 )
-from pydantic import Field
 
 
 class RegisterGroup(GroupBase):
-    attrs: Attrs = Field(
-        default_factory=lambda: dict(
-            timestamp=str(datetime.datetime.now(datetime.timezone.utc))
-        )
-    )
     reg_name: Folder
     parts: Folder
     state: Dataset
@@ -43,7 +36,14 @@ class MetricGroup(GroupBase):
     key: Folder
     value: Dataset
 
-def create_reg_group(creation_time, reg_name, parts, state, time, time_last_updated):
+class HistoryGroup(GroupBase):
+    parts: Folder
+    state: Dataset
+    time: Dataset
+    time_last_updated: Dataset
+
+
+def create_reg_group(reg_name, parts, state, time, time_last_updated):
     registers_group = RegisterGroup(
         reg_name=Folder(
             document_schema=dict(
@@ -84,7 +84,6 @@ def create_reg_group(creation_time, reg_name, parts, state, time, time_last_upda
         time_last_updated=Dataset(
             data=np.array([time_last_updated], dtype=np.float32),
         ),
-        attrs={"created_at": f"{creation_time}"},
     )
     return registers_group
 
@@ -113,6 +112,35 @@ def create_metric_group(key, value):
     )
     return metrics_group
 
+def create_hist_group(parts, state, time, time_last_updated):
+    history_group = HistoryGroup(
+        parts=Folder(
+            document_schema=dict(
+                index="int32",
+                dim="int32",
+            ),
+            data=unstructured_to_structured(
+                np.array(parts, dtype=np.int32),
+                dtype=np.dtype(
+                    [
+                        ("index", "int32"),
+                        ("dim", "int32")
+                    ]
+                ),
+            ),
+        ),
+        state=Dataset(
+            data=state
+        ),
+        time=Dataset(
+            data=np.array([time], dtype=np.float32),
+        ),
+        time_last_updated=Dataset(
+            data=np.array([time_last_updated], dtype=np.float32),
+        ),
+    )
+    return history_group
+
 def write_to_hdf5(register, _store, file_name = "interp_state"):
     _registers = register._registers
     _history = register.history
@@ -137,7 +165,6 @@ def write_to_hdf5(register, _store, file_name = "interp_state"):
 
         var_name = f"register_{n}"
         groups[var_name] = create_reg_group(
-            creation_time=creation_time,
             reg_name=[k.index, k.dim],
             parts=temp_parts,
             state=state,
@@ -146,20 +173,40 @@ def write_to_hdf5(register, _store, file_name = "interp_state"):
         )
         n += 1
     
-    
     n = 0
     for k, v in _metrics.items():
         var_name = f"metric_{n}"
         groups[var_name] = create_metric_group(k, v)
         n += 1
     
-    store = Datastore(groups=groups)
-    
-    # print("history: ", _history)
+    n = 0
+    for k, v in _history.items():
+        for i, reg in enumerate(v):
+            temp_parts = []
+            for part in reg.parts:
+                temp_parts.append([part.index, part.dim])
 
-    # for k, v in _history.items():
-    #     print("key: ", k)
-    #     print("value: ", v)
+            if reg.state is not None:
+                try:
+                    state = reg.state.data_as("ndarray")
+                except ValueError:
+                    state = reg.state.data_as("csr_array").toarray()
+                except Exception as e:
+                    print(f"Error while getting the state: {e}")
+                    state = np.array([])
+            else:
+                state = np.array([])
+
+            var_name = f"history_{n}_reg_{i}"
+            groups[var_name] = create_hist_group(
+                parts=temp_parts,
+                state=state,
+                time=reg.time,
+                time_last_updated=reg.time_last_updated
+            )
+        n += 1
+
+    store = Datastore(groups=groups, attrs={"created_at": f"{creation_time}"},)
 
     file_name += f"_{creation_time}"
 
