@@ -361,8 +361,8 @@ class AnalogInterpreter:
     def get_state(self, return_values):
         return self.vm.get_state(return_values)
 
-    def get_data(self):
-        write_to_hdf5(self.vm.registers, self.vm.store)
+    def get_data(self, file_name=""):
+        write_to_hdf5(self.vm.registers, self.vm.store, file_name)
 
     def reset(self):
         self.vm.reset()

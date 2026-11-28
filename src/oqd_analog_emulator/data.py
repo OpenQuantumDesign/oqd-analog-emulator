@@ -14,20 +14,14 @@
 
 import pathlib
 from datetime import datetime
-from typing import Dict
 
 import numpy as np
 from oqd_dataschema import (
     Attrs,
-    CastDataset,
-    CastFolder,
     Dataset,
     Datastore,
     Folder,
     GroupBase,
-    GroupRegistry,
-    Table,
-    condataset,
     unstructured_to_structured,
 )
 from pydantic import Field
@@ -49,8 +43,7 @@ class MetricGroup(GroupBase):
     key: Folder
     value: Dataset
 
-def create_reg_group(reg_name, parts, state, time, time_last_updated):
-    creation_time = datetime.now()
+def create_reg_group(creation_time, reg_name, parts, state, time, time_last_updated):
     registers_group = RegisterGroup(
         reg_name=Folder(
             document_schema=dict(
@@ -120,13 +113,14 @@ def create_metric_group(key, value):
     )
     return metrics_group
 
-def write_to_hdf5(register, _store):
+def write_to_hdf5(register, _store, file_name = "interp_state"):
     _registers = register._registers
     _history = register.history
     _metrics = register.metrics
 
     n = 0
     groups = {}
+    creation_time = datetime.now()
 
     for k, v in _registers.items():
         temp_parts = []
@@ -142,57 +136,32 @@ def write_to_hdf5(register, _store):
             state = np.array([])
 
         var_name = f"register_{n}"
-        groups[var_name] = create_reg_group(reg_name=[k.index, k.dim], parts=temp_parts, state=state, time=v.time, time_last_updated=v.time_last_updated)
+        groups[var_name] = create_reg_group(
+            creation_time=creation_time,
+            reg_name=[k.index, k.dim],
+            parts=temp_parts,
+            state=state,
+            time=v.time,
+            time_last_updated=v.time_last_updated
+        )
         n += 1
     
     
     n = 0
-
     for k, v in _metrics.items():
-        print("key: ", k)
-        print("value: ", v)
         var_name = f"metric_{n}"
         groups[var_name] = create_metric_group(k, v)
         n += 1
     
     store = Datastore(groups=groups)
     
-    # print("metrics: ", _metrics)
-    # print(len(_metrics))
     # print("history: ", _history)
 
-    
+    # for k, v in _history.items():
+    #     print("key: ", k)
+    #     print("value: ", v)
 
-            # time=Dataset(
-            #     data=np.array(collect_time, dtype=np.float32),
-            # ),
-            # time_last_updated=Dataset(
-            #     data=np.array(collect_time_last_updated, dtype=np.float32),
-            # ),
-            # state=Dataset(
-            #     data=np.array(collect_state),
-            # ),
-            # metrics=Dataset(
-            #     data=_metrics,
-            # ),
-            # store=Dataset(
-            #     data=_store,
-            # ),
-        #     state=Folder(
-        #     document_schema=dict(
-        #         state="complex128",
-        #     ),
-        #     data=unstructured_to_structured(
-        #         collect_state[0],
-        #         dtype=np.dtype(
-        #             [
-        #                 ("state", "complex128"),
-        #             ]
-        #         ),
-        #     ),
-        # ),
-        # # ),
-    
+    file_name += f"_{creation_time}"
 
-    store.model_dump_hdf5(pathlib.Path("test.h5"))
+    store.model_dump_hdf5(pathlib.Path(f"{file_name}.h5"))
 
