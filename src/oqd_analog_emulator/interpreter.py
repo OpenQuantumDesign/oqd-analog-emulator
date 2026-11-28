@@ -34,6 +34,7 @@ from oqd_analog_emulator.method_table import (
     QuantumRegister,
     QuantumRegisterPointer,
 )
+from oqd_analog_emulator.data import write_to_hdf5
 
 ########################################################################################
 
@@ -359,6 +360,9 @@ class AnalogInterpreter:
 
     def get_state(self, return_values):
         return self.vm.get_state(return_values)
+
+    def get_data(self):
+        write_to_hdf5(self.vm.registers, self.vm.store)
 
     def reset(self):
         self.vm.reset()
